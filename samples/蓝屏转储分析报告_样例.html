@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>崩溃转储分析报告</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; background:#F2F5F9; color:#16202C;
+         font-family:"Microsoft YaHei","Microsoft YaHei UI","Segoe UI",sans-serif;
+         font-size:14px; line-height:1.6; }
+  .wrap { max-width:1080px; margin:0 auto; padding:28px 24px 60px; }
+  .top { display:flex; align-items:flex-start; gap:14px; margin-bottom:20px; }
+  .logo { width:40px; height:40px; border-radius:10px; background:#1F6FEB;
+           color:#fff; font-weight:700; font-size:13px; display:flex;
+           align-items:center; justify-content:center; letter-spacing:0.5px;
+           font-family:"Microsoft YaHei",sans-serif; }
+  h1 { font-size:21px; margin:0 0 4px; font-weight:600; }
+  .sub { color:#5A6B7D; font-size:12.5px; }
+  .card { background:#FFFFFF; border:1px solid #DCE4EE; border-radius:12px;
+           padding:18px 20px; margin-bottom:14px; }
+  .verdict { display:flex; gap:20px; align-items:center; }
+  .score { width:92px; height:92px; border-radius:50%; flex:0 0 auto;
+            display:flex; flex-direction:column; align-items:center;
+            justify-content:center; border:6px solid; }
+  .score b { font-size:26px; line-height:1; font-family:"Microsoft YaHei",sans-serif; }
+  .score span { font-size:11px; color:#5A6B7D; margin-top:4px; }
+  .kpis { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:14px; }
+  .kpi { background:#FFFFFF; border:1px solid #DCE4EE; border-radius:10px; padding:11px 13px; }
+  .kpi .l { color:#5A6B7D; font-size:11.5px; }
+  .kpi .v { font-size:19px; font-weight:600; font-family:"Microsoft YaHei",sans-serif; margin-top:2px; }
+  h2 { font-size:14px; margin:26px 0 10px; font-weight:600; }
+  h2 .bar { display:inline-block; width:3px; height:13px; background:#1F6FEB;
+             border-radius:2px; margin-right:8px; vertical-align:-2px; }
+  .find { background:#FFFFFF; border:1px solid #DCE4EE; border-left-width:4px;
+           border-radius:10px; padding:14px 16px; margin-bottom:10px; }
+  .find .h { display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+  .find .t { font-size:14.5px; font-weight:600; }
+  .find .m { color:#8496A8; font-size:11.5px; font-family:"Microsoft YaHei",sans-serif; }
+  .tag { font-size:11.5px; padding:1px 8px; border-radius:9px; font-weight:600; }
+  .find p { margin:8px 0 0; color:#5A6B7D; font-size:13px; }
+  .adv { margin:10px 0 0; padding:10px 12px; background:#F7FAFE;
+          border:1px solid #DCE4EE; border-radius:8px; }
+  .adv b { font-size:12px; color:#1F6FEB; }
+  .adv ul { margin:5px 0 0; padding-left:19px; }
+  .adv li { font-size:13px; margin:2px 0; }
+  .ev { margin-top:9px; background:#F7F9FC; border-radius:7px; padding:8px 10px;
+         font-family:"Microsoft YaHei","Cascadia Mono",monospace; font-size:11.5px;
+         color:#8496A8; white-space:pre-wrap; word-break:break-all; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; background:#FFFFFF; }
+  th { text-align:left; background:#F5F8FC; color:#5A6B7D; font-weight:600;
+        font-size:11.5px; padding:8px 10px; border-bottom:1px solid #DCE4EE;
+        position:sticky; top:0; }
+  td { padding:7px 10px; border-bottom:1px solid #EFF3F8; vertical-align:top; }
+  tr:nth-child(even) td { background:#FBFCFE; }
+  .mono { font-family:"Cascadia Mono","Consolas","Microsoft YaHei",monospace; font-size:11.5px; }
+  .lv1 { color:#C1121F; font-weight:600; }
+  .lv2 { color:#CF4A2E; font-weight:600; }
+  .lv3 { color:#9A6700; }
+  .lv4 { color:#5A6B7D; }
+  .kv { width:100%; font-size:12.5px; }
+  .kv td { padding:4px 12px 4px 0; border:none; }
+  .kv td:first-child { color:#5A6B7D; white-space:nowrap; width:120px; }
+  .foot { margin-top:28px; color:#8496A8; font-size:11.5px; text-align:center; }
+  @media print {
+    body { background:#fff; }
+    .card,.find,.kpi,table { break-inside:avoid; }
+    .wrap { max-width:none; padding:0; }
+  }
+</style></head><body><div class="wrap">
+<div class="top">
+  <div class="logo">CLS</div>
+  <div><h1>崩溃转储分析报告</h1><div class="sub">转储文件 kernel_whea_124.dmp　·　生成时间 2026-10-21 09:44</div></div>
+</div>
+
+<div class="card"><div class="verdict">
+  <div class="score" style="border-color:#C1121F;color:#C1121F;">
+    <b>20</b><span>健康评分</span></div>
+  <div><div style="font-size:16px;font-weight:600;margin-bottom:6px;">
+      蓝屏 0x00000124 · 硬件不可纠正错误（WHEA）</div>
+    <div class="sub">kernel_whea_124.dmp　·　内核转储 (完整/小内存转储)　·　256.0 KB</div>
+  </div>
+</div></div>
+
+<h2><span class="bar"></span>文件与系统信息</h2>
+<div class="card"><table class="kv"><tr><td>文件</td><td>kernel_whea_124.dmp</td></tr><tr><td>类型</td><td>内核转储 (完整/小内存转储)</td></tr><tr><td>大小</td><td>256.0 KB</td></tr><tr><td>生成时间</td><td>2026-10-21 09:12:20</td></tr><tr><td>操作系统</td><td>Windows 10.0（内核转储未记录 build）（10.0）</td></tr><tr><td>处理器架构</td><td>x64 (AMD64)</td></tr><tr><td>逻辑处理器</td><td>16</td></tr></table></div>
+
+<h2><span class="bar"></span>诊断结论与建议</h2>
+<div class='find' style='border-left-color:#C1121F;'><div class='h'><span class='tag' style='color:#C1121F;background:#FDECEE;'>临界</span><span class='t'>蓝屏 0x00000124 · 硬件不可纠正错误（WHEA）</span><span class='m'>2026-10-21 09:12:20</span></div><p>WHEA_UNCORRECTABLE_ERROR（硬件不可纠正错误（WHEA））。常见原因方向：CPU / 内存 / PCIe 设备 / 主板供电。 参数：0x0 / 0xFFFFF80012345678 / 0xBA000000 / 0x800</p><div class='adv'><b>建议动作</b><ul><li>这是纯硬件方向：先看 WHEA-Logger 事件里的错误来源（CPU/内存/PCIe）</li><li>恢复 BIOS 默认，关闭超频/XMP</li><li>重插内存与 PCIe 设备、清理金手指</li><li>单条内存逐一排查，必要时更换</li><li>参数含义：参数1=错误来源类型(0=机器检查/1=纠正后恢复等)；参数2=错误状态；参数3=物理地址；参数4=保留</li></ul></div><div class='ev'>kernel_whea_124.dmp  内核转储 (完整/小内存转储)  256.0 KB
+OS Windows 10.0（内核转储未记录 build） / x64 (AMD64) / 16 逻辑处理器</div></div><div class='find' style='border-left-color:#9A6700;'><div class='h'><span class='tag' style='color:#9A6700;background:#FDF6E3;'>中</span><span class='t'>内核转储不含模块与堆栈信息</span><span class='m'>2026-10-21 09:12:20</span></div><p>内核转储按物理页组织，导出驱动列表与调用栈需要 cdb/WinDbg 与符号服务器。蓝屏码 + 参数已经足以确定排查方向；如需函数级定位，安装 Windows SDK 的调试工具后本工具会自动调用 cdb。</p><div class='adv'><b>建议动作</b><ul><li>安装 Windows SDK → Debugging Tools，或用 Microsoft Store 的 WinDbg</li><li>配置 _NT_SYMBOL_PATH=srv*C:\Symbols*https://msdl.microsoft.com/download/symbols</li><li>重新分析本文件即可获得符号化堆栈</li></ul></div></div>
+
+<div class="foot">由 崩溃现场分析套件 CrashLogSuite v1.0.1 生成 · 江苏振远智能科技有限公司 · 2026-10-21 09:44:13</div>
+</div></body></html>

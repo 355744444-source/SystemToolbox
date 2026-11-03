@@ -1,0 +1,38 @@
+# ── 构建产物 ──────────────────────────────────────────────
+build/
+build_v*/
+build_*.log
+*.spec.bak
+
+# ── 历史版本归档（archive/ 约 660 MB，历代 exe 只留本地）──
+archive/
+
+# ── Python 缓存 ───────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+venv_pyi/
+
+# ── 本地探针输出（调试用，结果不入库）────────────────────
+probe_out/
+probe_*.txt
+probe_*.log
+
+# ── 开发期过程截图（成品截图在 docs/，shots/ 是打磨中间态）──
+shots/
+
+# ── 打包中间文件 ──────────────────────────────────────────
+*.manifest
+*.pkg
+warn-*.txt
+xref-*.html
+
+# ── 系统 / 编辑器 ─────────────────────────────────────────
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
+*.swp

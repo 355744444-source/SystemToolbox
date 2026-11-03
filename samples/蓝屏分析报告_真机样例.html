@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>崩溃转储分析报告</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; background:#F2F5F9; color:#16202C;
+         font-family:"Microsoft YaHei","Microsoft YaHei UI","Segoe UI",sans-serif;
+         font-size:14px; line-height:1.6; }
+  .wrap { max-width:1080px; margin:0 auto; padding:28px 24px 60px; }
+  .top { display:flex; align-items:flex-start; gap:14px; margin-bottom:20px; }
+  .logo { width:40px; height:40px; border-radius:10px; background:#1F6FEB;
+           color:#fff; font-weight:700; font-size:13px; display:flex;
+           align-items:center; justify-content:center; letter-spacing:0.5px;
+           font-family:"Microsoft YaHei",sans-serif; }
+  h1 { font-size:21px; margin:0 0 4px; font-weight:600; }
+  .sub { color:#5A6B7D; font-size:12.5px; }
+  .card { background:#FFFFFF; border:1px solid #DCE4EE; border-radius:12px;
+           padding:18px 20px; margin-bottom:14px; }
+  .verdict { display:flex; gap:20px; align-items:center; }
+  .score { width:92px; height:92px; border-radius:50%; flex:0 0 auto;
+            display:flex; flex-direction:column; align-items:center;
+            justify-content:center; border:6px solid; }
+  .score b { font-size:26px; line-height:1; font-family:"Microsoft YaHei",sans-serif; }
+  .score span { font-size:11px; color:#5A6B7D; margin-top:4px; }
+  .kpis { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:14px; }
+  .kpi { background:#FFFFFF; border:1px solid #DCE4EE; border-radius:10px; padding:11px 13px; }
+  .kpi .l { color:#5A6B7D; font-size:11.5px; }
+  .kpi .v { font-size:19px; font-weight:600; font-family:"Microsoft YaHei",sans-serif; margin-top:2px; }
+  h2 { font-size:14px; margin:26px 0 10px; font-weight:600; }
+  h2 .bar { display:inline-block; width:3px; height:13px; background:#1F6FEB;
+             border-radius:2px; margin-right:8px; vertical-align:-2px; }
+  .find { background:#FFFFFF; border:1px solid #DCE4EE; border-left-width:4px;
+           border-radius:10px; padding:14px 16px; margin-bottom:10px; }
+  .find .h { display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+  .find .t { font-size:14.5px; font-weight:600; }
+  .find .m { color:#8496A8; font-size:11.5px; font-family:"Microsoft YaHei",sans-serif; }
+  .tag { font-size:11.5px; padding:1px 8px; border-radius:9px; font-weight:600; }
+  .find p { margin:8px 0 0; color:#5A6B7D; font-size:13px; }
+  .adv { margin:10px 0 0; padding:10px 12px; background:#F7FAFE;
+          border:1px solid #DCE4EE; border-radius:8px; }
+  .adv b { font-size:12px; color:#1F6FEB; }
+  .adv ul { margin:5px 0 0; padding-left:19px; }
+  .adv li { font-size:13px; margin:2px 0; }
+  .ev { margin-top:9px; background:#F7F9FC; border-radius:7px; padding:8px 10px;
+         font-family:"Microsoft YaHei","Cascadia Mono",monospace; font-size:11.5px;
+         color:#8496A8; white-space:pre-wrap; word-break:break-all; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; background:#FFFFFF; }
+  th { text-align:left; background:#F5F8FC; color:#5A6B7D; font-weight:600;
+        font-size:11.5px; padding:8px 10px; border-bottom:1px solid #DCE4EE;
+        position:sticky; top:0; }
+  td { padding:7px 10px; border-bottom:1px solid #EFF3F8; vertical-align:top; }
+  tr:nth-child(even) td { background:#FBFCFE; }
+  .mono { font-family:"Cascadia Mono","Consolas","Microsoft YaHei",monospace; font-size:11.5px; }
+  .lv1 { color:#C1121F; font-weight:600; }
+  .lv2 { color:#CF4A2E; font-weight:600; }
+  .lv3 { color:#9A6700; }
+  .lv4 { color:#5A6B7D; }
+  .kv { width:100%; font-size:12.5px; }
+  .kv td { padding:4px 12px 4px 0; border:none; }
+  .kv td:first-child { color:#5A6B7D; white-space:nowrap; width:120px; }
+  .foot { margin-top:28px; color:#8496A8; font-size:11.5px; text-align:center; }
+  @media print {
+    body { background:#fff; }
+    .card,.find,.kpi,table { break-inside:avoid; }
+    .wrap { max-width:none; padding:0; }
+  }
+</style></head><body><div class="wrap">
+<div class="top">
+  <div class="logo">CLS</div>
+  <div><h1>崩溃转储分析报告</h1><div class="sub">转储文件 052026-8984-01.dmp　·　生成时间 2026-10-21 10:34</div></div>
+</div>
+
+<div class="card"><div class="verdict">
+  <div class="score" style="border-color:#C1121F;color:#C1121F;">
+    <b>20</b><span>健康评分</span></div>
+  <div><div style="font-size:16px;font-weight:600;margin-bottom:6px;">
+      蓝屏 0x0000000A · 内核访问了非法/可分页地址</div>
+    <div class="sub">052026-8984-01.dmp　·　内核转储 (完整/小内存转储)　·　4.5 MB</div>
+  </div>
+</div></div>
+
+<h2><span class="bar"></span>文件与系统信息</h2>
+<div class="card"><table class="kv"><tr><td>文件</td><td>052026-8984-01.dmp</td></tr><tr><td>类型</td><td>内核转储 (完整/小内存转储)</td></tr><tr><td>大小</td><td>4.5 MB</td></tr><tr><td>生成时间</td><td>2026-10-21 10:26:51</td></tr><tr><td>操作系统</td><td>Windows 11 24H2（10.0.26100）</td></tr><tr><td>处理器架构</td><td>x64 (AMD64)</td></tr><tr><td>逻辑处理器</td><td>16</td></tr></table></div>
+
+<h2><span class="bar"></span>诊断结论与建议</h2>
+<div class='find' style='border-left-color:#CF4A2E;'><div class='h'><span class='tag' style='color:#CF4A2E;background:#FDEEE9;'>高</span><span class='t'>调试器定位：Npfs.SYS</span><span class='m'>-</span></div><p>模块 Npfs（Npfs.SYS 10.0.26100.4202）；触发进程 WeChatAppEx.ex；失败桶 AV_Npfs!NpFsdWrite；符号 Npfs!NpFsdWrite+94
+调用栈：
+  : nt!KeBugCheckEx
+  : nt!KiBugCheckDispatch+0x69
+  : nt!KiPageFault+0x468
+  : nt!KiDeferredReadySingleThread+0xd11
+  : nt!KiProcessThreadWaitList+0x106
+  : nt!KiExitDispatcher+0x46</p><div class='adv'><b>建议动作</b><ul><li>优先排查 Npfs.SYS（版本 10.0.26100.4202）：升级 / 回滚驱动后复测</li><li>用失败桶 AV_Npfs!NpFsdWrite 检索微软符号库与驱动厂商问题库的同类案例</li><li>把该转储和这份结论一并交给研发，可按符号直接下断点复现</li></ul></div><div class='ev'>: nt!KeBugCheckEx
+: nt!KiBugCheckDispatch+0x69
+: nt!KiPageFault+0x468</div></div><div class='find' style='border-left-color:#C1121F;'><div class='h'><span class='tag' style='color:#C1121F;background:#FDECEE;'>临界</span><span class='t'>蓝屏 0x0000000A · 内核访问了非法/可分页地址</span><span class='m'>2026-10-21 10:26:51</span></div><p>IRQL_NOT_LESS_OR_EQUAL（内核访问了非法/可分页地址）。常见原因方向：第三方驱动（网卡、显卡、存储、杀软过滤驱动）。 参数：0xFFFFF80ED07C8C38 / 0x2 / 0x0 / 0xFFFFF806CFA6FF31</p><div class='adv'><b>建议动作</b><ul><li>优先更新或回滚最近安装/升级的驱动，尤其是网卡与存储驱动</li><li>若近期装了杀毒、虚拟化、硬件监控类软件，先卸载验证</li><li>跑一遍 Windows 内存诊断，排除内存条故障</li><li>用驱动验证器 Driver Verifier 定向复现（生产机慎用）</li><li>参数含义：参数1=被访问的地址；参数2=访问时的 IRQL；参数3=访问类型(0读/1写/8执行)；参数4=出错指令地址</li></ul></div><div class='ev'>052026-8984-01.dmp  内核转储 (完整/小内存转储)  4.5 MB
+OS Windows 11 24H2 / x64 (AMD64) / 16 逻辑处理器</div></div><div class='find' style='border-left-color:#9A6700;'><div class='h'><span class='tag' style='color:#9A6700;background:#FDF6E3;'>中</span><span class='t'>内核转储不含模块与堆栈信息</span><span class='m'>2026-10-21 10:26:51</span></div><p>内核转储按物理页组织，导出驱动列表与调用栈需要 cdb/WinDbg 与符号服务器。蓝屏码 + 参数已经足以确定排查方向；如需函数级定位，安装 Windows SDK 的调试工具后本工具会自动调用 cdb。</p><div class='adv'><b>建议动作</b><ul><li>安装 Windows SDK → Debugging Tools，或用 Microsoft Store 的 WinDbg</li><li>配置 _NT_SYMBOL_PATH=srv*C:\Symbols*https://msdl.microsoft.com/download/symbols</li><li>重新分析本文件即可获得符号化堆栈</li></ul></div></div>
+
+<h2><span class="bar"></span>调试器结论（cdb !analyze -v）</h2>
+<div class="card"><table class="kv"><tr><td>BUGCHECK_CODE</td><td class='mono'>a</td></tr><tr><td>PROCESS_NAME</td><td class='mono'>WeChatAppEx.ex</td></tr><tr><td>MODULE_NAME</td><td class='mono'>Npfs</td></tr><tr><td>IMAGE_NAME</td><td class='mono'>Npfs.SYS</td></tr><tr><td>IMAGE_VERSION</td><td class='mono'>10.0.26100.4202</td></tr><tr><td>SYMBOL_NAME</td><td class='mono'>Npfs!NpFsdWrite+94</td></tr><tr><td>FAILURE_BUCKET_ID</td><td class='mono'>AV_Npfs!NpFsdWrite</td></tr></table>
+<div class='ev' style='margin-top:10px;'>: nt!KeBugCheckEx
+: nt!KiBugCheckDispatch+0x69
+: nt!KiPageFault+0x468
+: nt!KiDeferredReadySingleThread+0xd11
+: nt!KiProcessThreadWaitList+0x106
+: nt!KiExitDispatcher+0x46
+: nt!IopCompleteIrpInFileObjectList+0x2d6
+: nt!IopfCompleteRequest+0x737
+: nt!IofCompleteRequest+0x13
+: Npfs!NpFsdWrite+0x94
+: nt!IopfCallDriver+0x5b
+: nt!IofCallDriver+0x13
+: FLTMGR!FltpDispatch+0x2ea
+: nt!IopfCallDriver+0x5b
+: nt!IofCallDriver+0x13
+: nt!IopSynchronousServiceTail+0x1c5
+: nt!IopWriteFile+0x141
+: nt!NtWriteFile+0x2d2
+: nt!KiSystemServiceCopyEnd+0x25
+: 0x00007ffe`32c61da4</div></div>
+
+<h2><span class="bar"></span>调试器原始输出</h2>
+<div class="card"><pre class="mono" style="white-space:pre-wrap;margin:0;">
+Microsoft (R) Windows Debugger Version 10.0.19041.1 AMD64
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+
+Loading Dump File [C:\Users\MSI\Desktop\052026-8984-01.dmp]
+Mini Kernel Dump File: Only registers and stack trace are available
+
+
+************* Path validation summary **************
+Response                         Time (ms)     Location
+Deferred                                       srv*C:\Users\MSI\AppData\Local\CrashLogSuite\Symbols*https://msdl.microsoft.com/download/symbols
+Symbol search path is: srv*C:\Users\MSI\AppData\Local\CrashLogSuite\Symbols*https://msdl.microsoft.com/download/symbols
+Executable search path is: 
+Windows 10 Kernel Version 26100 MP (16 procs) Free x64
+Product: WinNt, suite: TerminalServer SingleUserTS
+Machine Name:
+Kernel base = 0xfffff806`cf800000 PsLoadedModuleList = 0xfffff806`d06f52d0
+Debug session time: Wed May 20 23:39:49.899 2026 (UTC + 8:00)
+System Uptime: 0 days 21:35:05.594
+Loading Kernel Symbols
+...............................................................
+................................................................
+................................................................
+..............
+Loading User Symbols
+Loading unloaded module list
+..............................
+For analysis of this file, run !analyze -v
+2: kd&gt; cdb: Reading initial command &#x27;.symfix; .reload; !analyze -v; q&#x27;
+Loading Kernel Symbols
+...............................................................
+................................................................
+................................................................
+..............
+Loading User Symbols
+Loading unloaded module list
+..............................
+*******************************************************************************
+*                                                                             *
+*                        Bugcheck Analysis                                    *
+*                                                                             *
+*******************************************************************************
+
+IRQL_NOT_LESS_OR_EQUAL (a)
+An attempt was made to access a pageable (or completely invalid) address at an
+interrupt request level (IRQL) that is too high.  This is usually
+caused by drivers using improper addresses.
+If a kernel debugger is available get the stack backtrace.
+Arguments:
+Arg1: fffff80ed07c8c38, memory referenced
+Arg2: 0000000000000002, IRQL
+Arg3: 0000000000000000, bitfield :
+	bit 0 : value 0 = read operation, 1 = write operation
+	bit 3 : value 0 = not an execute operation, 1 = execute operation (only on chips which support this level of status)
+Arg4: fffff806cfa6ff31, address which referenced memory
+
+Debugging Details:
+------------------
+
+
+KEY_VALUES_STRING: 1
+
+    Key  : Analysis.CPU.Sec
+    Value: 2
+
+    Key  : Analysis.DebugAnalysisProvider.CPP
+    Value: Create: 8007007e on WINDOWS11
+
+    Key  : Analysis.DebugData
+    Value: CreateObject
+
+    Key  : Analysis.DebugModel
+    Value: CreateObject
+
+    Key  : Analysis.Elapsed.Sec
+    Value: 2
+
+    Key  : Analysis.Memory.CommitPeak.Mb
+    Value: 79
+
+    Key  : Analysis.System
+    Value: CreateObject
+
+
+TAG_NOT_DEFINED_202b:  *** Unknown TAG in analysis list 202b
+
+
+DUMP_FILE_ATTRIBUTES: 0x21808
+  Kernel Generated Triage Dump
+
+BUGCHECK_CODE:  a
+
+BUGCHECK_P1: fffff80ed07c8c38
+
+BUGCHECK_P2: 2
+
+BUGCHECK_P3: 0
+
+BUGCHECK_P4: fffff806cfa6ff31
+
+READ_ADDRESS: fffff806d07c54d8: Unable to get MiVisibleState
+Unable to get NonPagedPoolStart
+Unable to get NonPagedPoolEnd
+Unable to get PagedPoolStart
+Unable to get PagedPoolEnd
+fffff806d060a9a8: Unable to get Flags value from nt!KdVersionBlock
+fffff806d060a9a8: Unable to get Flags value from nt!KdVersionBlock
+unable to get nt!MmSpecialPagesInUse
+ fffff80ed07c8c38 
+
+BLACKBOXBSD: 1 (!blackboxbsd)
+
+
+BLACKBOXNTFS: 1 (!blackboxntfs)
+
+
+BLACKBOXPNP: 1 (!blackboxpnp)
+
+
+BLACKBOXWINLOGON: 1
+
+CUSTOMER_CRASH_COUNT:  1
+
+PROCESS_NAME:  WeChatAppEx.ex
+
+TRAP_FRAME:  fffff602c2056ef0 -- (.trap 0xfffff602c2056ef0)
+NOTE: The trap frame does not contain all registers.
+Some register values may be zeroed or incorrect.
+rax=00000000ffffffff rbx=0000000000000000 rcx=00000000ffffffff
+rdx=ffff94842557a080 rsi=0000000000000000 rdi=0000000000000000
+rip=fffff806cfa6ff31 rsp=fffff602c2057080 rbp=fffff602c2057180
+ r8=0000000000000000  r9=0000000000000001 r10=0000000000000000
+r11=ffff94842557a8e0 r12=0000000000000000 r13=0000000000000000
+r14=0000000000000000 r15=0000000000000000
+iopl=0         nv up ei ng nz na po nc
+nt!KiDeferredReadySingleThread+0xd11:
+fffff806`cfa6ff31 488b9cce408cfc00 mov     rbx,qword ptr [rsi+rcx*8+0FC8C40h] ds:00000008`00fc8c38=????????????????
+Resetting default scope
+
+STACK_TEXT:  
+fffff602`c2056da8 fffff806`cfebcee9 : 00000000`0000000a fffff80e`d07c8c38 00000000`00000002 00000000`00000000 : nt!KeBugCheckEx
+fffff602`c2056db0 fffff806`cfeb81a8 : fffff806`d06159c0 fffff806`cfce1e2c fffff780`00000300 fffffff6`00000002 : nt!KiBugCheckDispatch+0x69
+fffff602`c2056ef0 fffff806`cfa6ff31 : 00000000`2557a100 fffff780`00000320 fffff602`c20571f8 fffff602`c2057160 : nt!KiPageFault+0x468
+fffff602`c2057080 fffff806`cfa6f006 : 00000000`00000001 ffff9484`02100000 00000000`00000000 00000000`00000070 : nt!KiDeferredReadySingleThread+0xd11
+fffff602`c20571d0 fffff806`cfa6ecc6 : 00000000`00000000 00000000`00000001 00000000`00000002 ffff9484`00000000 : nt!KiProcessThreadWaitList+0x106
+fffff602`c2057270 fffff806`cfa6bc46 : ffff9484`37e0b0f0 ffff9484`2557a080 ffff9484`2557a080 00000000`00000000 : nt!KiExitDispatcher+0x46
+fffff602`c20572d0 fffff806`cfb9d617 : ffff9484`00000002 ffff9484`37e0b0f0 ffff9484`37e0b0f0 ffffa580`c0351180 : nt!IopCompleteIrpInFileObjectList+0x2d6
+fffff602`c2057370 fffff806`cfb9ceb3 : 00000000`00000000 ffff9484`1b766400 fffff602`c2057560 ffff9484`06d25db0 : nt!IopfCompleteRequest+0x737
+fffff602`c20574f0 fffff806`63e525d4 : fffff602`00000000 ffff9484`37e103f8 00000000`00000001 00000000`00000000 : nt!IofCompleteRequest+0x13
+fffff602`c2057520 fffff806`cfa5ccfb : ffff9484`37e102e0 fffff806`cfab1e39 ffff9484`23649080 00000000`00000000 : Npfs!NpFsdWrite+0x94
+fffff602`c2057590 fffff806`cfa5cc73 : ffff9484`23649080 00000000`00000000 00000000`00000000 00000000`00000000 : nt!IopfCallDriver+0x5b
+fffff602`c20575d0 fffff806`6147bb7a : ffff9484`37e102e0 fffff602`c2057780 ffff9484`06d25db0 00000000`00000000 : nt!IofCallDriver+0x13
+fffff602`c2057600 fffff806`cfa5ccfb : 00000000`00000000 00000000`00062a00 ffff9484`1b766400 00000000`00000000 : FLTMGR!FltpDispatch+0x2ea
+fffff602`c20576a0 fffff806`cfa5cc73 : ffff9484`1b766400 ffff9484`1b766400 00000000`00000000 ffff9484`37e102e0 : nt!IopfCallDriver+0x5b
+fffff602`c20576e0 fffff806`d00cb3a5 : 00000000`00000000 ffff9484`1b766400 fffff602`c2057780 00000003`00000004 : nt!IofCallDriver+0x13
+fffff602`c2057710 fffff806`d00c9651 : fffff602`c2057820 fffff602`c20578f0 ffff9484`37e102e0 00000000`00000000 : nt!IopSynchronousServiceTail+0x1c5
+fffff602`c20577c0 fffff806`d00c9322 : ffff9484`1b766400 ffff9484`1b7663d0 ffff9484`37e102e0 00000000`00000000 : nt!IopWriteFile+0x141
+fffff602`c20578e0 fffff806`cfebc555 : 00000000`00000001 00000000`00000000 00000000`00000000 000030e4`00116298 : nt!NtWriteFile+0x2d2
+fffff602`c20579b0 00007ffe`32c61da4 : 00000000`00000000 00000000`00000000 00000000`00000000 00000000`00000000 : nt!KiSystemServiceCopyEnd+0x25
+00000008`3a1fe398 00000000`00000000 : 00000000`00000000 00000000`00000000 00000000`00000000 00000000`00000000 : 0x00007ffe`32c61da4
+
+
+SYMBOL_NAME:  Npfs!NpFsdWrite+94
+
+MODULE_NAME: Npfs
+
+IMAGE_NAME:  Npfs.SYS
+
+IMAGE_VERSION:  10.0.26100.4202
+
+STACK_COMMAND:  .thread ; .cxr ; kb
+
+BUCKET_ID_FUNC_OFFSET:  94
+
+FAILURE_BUCKET_ID:  AV_Npfs!NpFsdWrite
+
+OSPLATFORM_TYPE:  x64
+
+OSNAME:  Windows 10
+
+FAILURE_ID_HASH:  {c7a8f3eb-1b12-da96-eca7-b8ff2fe98a86}
+
+Followup:     MachineOwner
+---------
+
+quit:
+NatVis script unloaded from &#x27;C:\Program Files\Windows Kits\10\Debuggers\x64\Visualizers\atlmfc.natvis&#x27;
+NatVis script unloaded from &#x27;C:\Program Files\Windows Kits\10\Debuggers\x64\Visualizers\concurrency.natvis&#x27;
+NatVis script unloaded from &#x27;C:\Program Files\Windows Kits\10\Debuggers\x64\Visualizers\cpp_rest.natvis&#x27;
+NatVis script unloaded from &#x27;C:\Program Files\Windows Kits\10\Debuggers\x64\Visualizers\stl.natvis&#x27;
+NatVis script unloaded from &#x27;C:\Program Files\Windows Kits\10\Debuggers\x64\Visualizers\Windows.Data.Json.natvis&#x27;
+NatVis script unloaded from &#x27;C:\Program Files\Windows Kits\10\Debuggers\x64\Visualizers\Windows.Devices.Geolocation.natvis&#x27;
+NatVis script unloaded from &#x27;C:\Program Files\Windows Kits\10\Debuggers\x64\Visualizers\Windows.Devices.Sensors.natvis&#x27;
+NatVis script unloaded from &#x27;C:\Program Files\Windows Kits\10\Debuggers\x64\Visualizers\Windows.Media.natvis&#x27;
+NatVis script unloaded from &#x27;C:\Program Files\Windows Kits\10\Debuggers\x64\Visualizers\windows.natvis&#x27;
+NatVis script unloaded from &#x27;C:\Program Files\Windows Kits\10\Debuggers\x64\Visualizers\winrt.natvis&#x27;
+NatVis script unloaded from &#x27;C:\Program Files\Windows Kits\10\Debuggers\x64\Visualizers\Kernel.natvis&#x27;
+</pre></div>
+
+<div class="foot">由 崩溃现场分析套件 CrashLogSuite v1.0.2 生成 · 江苏振远智能科技有限公司 · 2026-10-21 10:34:53</div>
+</div></body></html>
