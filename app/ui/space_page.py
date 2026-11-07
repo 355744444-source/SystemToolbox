@@ -133,6 +133,9 @@ class LargeFileTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._busy = False
+        # find_large_files 回填的统计（scanned / matched / shown / truncated）：
+        # 结果被 limit 截断时，脚注必须写成「共 N 个，下面显示最大的 300 个」
+        self._stats: dict = {}
         self._build()
 
     def _build(self) -> None:
@@ -233,7 +236,7 @@ class LargeFileTab(QWidget):
         def job(tick, stop):
             return space.find_large_files(
                 root, min_size, limit=300,
-                stop_flag=stop,
+                stop_flag=stop, stats=self._stats,
                 progress=lambda n, cur: tick(n, 0, os.path.basename(cur) or cur))
 
         run_bg(self, job, self._on_done, self._on_tick, self._on_fail)
@@ -253,6 +256,16 @@ class LargeFileTab(QWidget):
         self.prog.hide()
         self.model.set_rows(rows)
         total = sum(r[1] for r in rows)
+        st = self._stats or {}
+        matched = st.get("matched", len(rows))
+        if rows and st.get("truncated"):
+            # 别把「只列了 300 个」说成「一共就 300 个」
+            self.sel_label.setText(
+                f"共找到 {matched:,} 个文件（本表只列最大的 {len(rows)} 个）"
+                f" · 已列合计 {cleaner.human_size(total)}")
+            self.status.emit(
+                f"扫描完成：找到 {matched:,} 个大文件，只显示最大的 {len(rows)} 个")
+            return
         self.sel_label.setText(
             f"共 {len(rows)} 个文件 · {cleaner.human_size(total)}" if rows
             else "没有找到超过阈值的文件")
@@ -353,7 +366,12 @@ class DirTreeTab(QWidget):
 
         self.model = RowModel([
             Col("目录", 300, lambda r: r.name, tip=lambda r: r.path),
-            Col("占用", 100, lambda r: cleaner.human_size(r.size), color="warn"),
+            # 撞到统计上限的子目录，数字只是下限，前面加「≥」——
+            # 不加的话「1.2 GB」会被当成完整结果，用户据此判断「这个目录不大」
+            Col("占用", 100,
+                lambda r: ("≥" if getattr(r, "truncated", False) else "")
+                + cleaner.human_size(r.size), color="warn",
+                sort=lambda r: r.size),      # 带「≥」前缀后不能再按文字猜大小
             Col("占当前层", 90, lambda r: f"{self._pct(r)}", color="accent"),
             Col("文件数", 90, lambda r: f"{r.files:,}", color="dim", mono=True),
             Col("最后修改", 140, lambda r: fmt_time(r.mtime), color="dim", mono=True),
@@ -431,12 +449,13 @@ class DirTreeTab(QWidget):
         self.prog.hide()
         self._root_node = node
         self.model.set_rows(node.children)
+        cut = "（统计被截断，实际更大：文件数超过上限或已手动停止）" if node.truncated else ""
         self.crumb.setText(f"{target} · 合计 {cleaner.human_size(node.size)} · "
-                           f"{node.files:,} 个文件 · 下方为一级子目录占用")
+                           f"{node.files:,} 个文件 · 下方为一级子目录占用{cut}")
         self.sum_label.setText(f"共 {len(node.children)} 个子目录")
         self.btn_up.setEnabled(bool(self._history))
         self.status.emit(f"分析完成：{cleaner.human_size(node.size)}，"
-                         f"{node.files:,} 个文件")
+                         f"{node.files:,} 个文件{cut}")
 
     def _drill(self) -> None:
         idx = self.table.currentIndex()

@@ -158,7 +158,10 @@ class AskBar(QFrame):
         box.addWidget(self.label)
         h.addLayout(box, 1)
 
-        self.btn_cancel = ghost_button(cancel_text)
+        # 取消用文字链接，不用按钮：v2.2.0 起所有动作按钮都是同一种蓝实心，
+        # 两条一模一样的蓝按钮并排表示「取消」和「确认」是纯坑 ——
+        # 一条确认里只能有一个实心动作，取消退成文字。
+        self.btn_cancel = bare_button(cancel_text)
         self.btn_cancel.clicked.connect(lambda: self._answer(False))
         h.addWidget(self.btn_cancel, 0, Qt.AlignVCenter)
 

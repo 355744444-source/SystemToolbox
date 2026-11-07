@@ -42,13 +42,9 @@ DARK = {
     "surface": "#151B23",
     "surface2": "#1C242E",
     "surface3": "#232D3A",
-    # 次要按钮（ghost）的填充色：比 surface3 再亮一档并带一点蓝调，
-    # 保证在 surface 底上"一眼看出是个按钮"，又不跟蓝色实心主按钮抢焦点
-    "btn_alt": "#2C3B4E",
-    "btn_alt_hover": "#3A4E66",
-    # 次要按钮填充：深色下比默认按钮暗一档，但仍明显高于页面底色
-    "btn_ghost": "#232D3A",
-    "btn_ghost_hover": "#2C3B4E",
+    # btn_alt / btn_alt_hover / btn_ghost / btn_ghost_hover 四个「灰色按钮填充」
+    # 令牌在 v2.2.0 删掉：按钮统一成蓝实心后它们没有使用者了，
+    # 留着会让人以为还有灰按钮可调。surface3 仍给下拉框/行背景用。
     "border": "#2A3543",
     "border_strong": "#3B4A5C",
     # 卡片的「上亮下暗」1px 边缘：替代投影。实测 QGraphicsDropShadowEffect
@@ -61,11 +57,22 @@ DARK = {
     "faint": "#5E6C7B",
     "accent": "#4C9AFF",
     "accent_hover": "#6FB1FF",
+    # 按下态：比 accent 沉一档。全应用按钮统一成蓝实心后（v2.2.0），
+    # 按下沿用 accent_soft（#1B3A5C，接近黑）会显得像「熄掉了」，
+    # 所以单开一档同色系深蓝。
+    "accent_press": "#3E86E0",
     "accent_soft": "#1B3A5C",
     "ok": "#3FB950",
     "warn": "#D6A020",
     "error": "#F0603C",
     "crit": "#FF5C5C",
+    # 危险按钮的实心填充：v2.2.0 起跟蓝色按钮同一套做法（实心 + 白字），
+    # 只换色相。原来用 rgba(crit,0.10) 的淡红底 + 红字，放在淡红底的
+    # 危险确认条里几乎分不出边界。填充比 crit 深一档，是为了白字读得清
+    # （#FF5C5C 配白字只有 3.0:1，#D93E3E 是 4.5:1）。
+    "danger_fill": "#D93E3E",
+    "danger_fill_hover": "#E85555",
+    "danger_fill_press": "#C03434",
     "info": "#58A6FF",
     "sel": "#16324F",
     "shadow": "rgba(0,0,0,0.45)",
@@ -107,7 +114,8 @@ def qss(t: dict) -> str:
         c = QColor(hex_color)
         return f"rgba({c.red()}, {c.green()}, {c.blue()}, {a})"
 
-    danger_hover = rgba(t["crit"], 0.18)
+    # 只剩「淡红底」一处使用者：#AskBar[kind="danger"] 的整条底色。
+    # 危险按钮本身已改成实心红（danger_fill），不再需要淡红填充。
     danger_idle = rgba(t["crit"], 0.10)
     return f"""
 * {{
@@ -187,42 +195,29 @@ QFrame[role="findingCard"]:hover {{
 }}
 
 /* ---------- 按钮 ---------- */
-/* 层级：primary（蓝实心）> 默认/plain（亮填充）> ghost（次亮填充）> bare（无底） */
+/* v2.2.0：**只有一个动作按钮档**。原来分四档（primary 蓝实心 / 默认亮填充 /
+   ghost 次亮填充 / bare 无底），实际用起来是 70 个 ghost + 11 个默认 +
+   20 个 primary 各自深浅不同，同一行并排的「扫描」「清理」「停止」看起来
+   像三个不同重要性的控件，而它们其实是同一层的动作。
+   现在全部统一成蓝实心白字（#4C9AFF / 600 字重 / 6px 圆角），
+   层级交给位置和文案表达，不再用颜色深浅表达。
+   代码里的 role="primary" / "ghost" 保留（70 处调用不必改），但不再影响外观。
+   两个例外：
+     - #DangerBtn 仍是红底红字（真会删东西的动作要留唯一警告色）
+     - [role="chip"] 是可切换的筛选胶囊、[role="bare"] 是输入框里的 ×，
+       它们不是「动作按钮」，跟着变蓝会失去功能含义（chip 的选中/未选中
+       就分不出来了） */
 QPushButton {{
-    background: {t['btn_alt']};
-    border: 1px solid {t['border_strong']};
-    border-radius: {R['sm']}px;
-    padding: 6px 14px;
-    color: {t['text']};
-}}
-QPushButton:hover {{ background: {t['btn_alt_hover']}; border-color: {t['accent']}; }}
-QPushButton:pressed {{ background: {t['accent_soft']}; }}
-QPushButton:disabled {{ color: {t['faint']}; border-color: {t['border']}; background: {t['surface2']}; }}
-QPushButton[role="primary"] {{
     background: {t['accent']};
     border: 1px solid {t['accent']};
+    border-radius: {R['sm']}px;
+    padding: 6px 14px;
     color: #FFFFFF;
     font-weight: 600;
 }}
-QPushButton[role="primary"]:hover {{ background: {t['accent_hover']}; border-color: {t['accent_hover']}; }}
-/* 次要按钮：有填充 + 描边，与页面底色拉开层次；比默认按钮低一档 */
-QPushButton[role="ghost"] {{
-    background: {t['btn_ghost']};
-    border: 1px solid {t['border_strong']};
-    color: {t['text']};
-    font-weight: 500;
-    padding: 5px 12px;
-}}
-QPushButton[role="ghost"]:hover {{
-    background: {t['btn_ghost_hover']};
-    border-color: {t['accent']};
-    color: {t['text']};
-}}
-QPushButton[role="ghost"]:pressed {{
-    background: {t['accent_soft']};
-    border-color: {t['accent']};
-}}
-QPushButton[role="ghost"]:disabled {{
+QPushButton:hover {{ background: {t['accent_hover']}; border-color: {t['accent_hover']}; }}
+QPushButton:pressed {{ background: {t['accent_press']}; border-color: {t['accent_press']}; }}
+QPushButton:disabled {{
     background: {t['surface2']};
     border-color: {t['border']};
     color: {t['faint']};
@@ -249,15 +244,32 @@ QPushButton[role="chip"]:checked {{
     color: {t['accent']};
     font-weight: 600;
 }}
-/* 危险动作（清理 / 删除 / 修复）：淡红填充 + 红描边，够醒目又不至于误点 */
+/* 危险动作（清理 / 删除 / 修复）：与蓝色按钮**同一套做法**，只换色相 ——
+   实心 + 白字 + 同样的圆角与内边距。原来用淡红底 + 红字，压在淡红底的
+   危险确认条上几乎看不出是按钮。 */
 QPushButton#DangerBtn {{
-    background: {danger_idle};
-    border: 1px solid {t['crit']};
-    color: {t['crit']};
+    background: {t['danger_fill']};
+    border: 1px solid {t['danger_fill']};
+    color: #FFFFFF;
     font-weight: 600;
     padding: 6px 14px;
 }}
-QPushButton#DangerBtn:hover {{ background: {danger_hover}; border-color: {t['crit']}; }}
+QPushButton#DangerBtn:hover {{
+    background: {t['danger_fill_hover']};
+    border-color: {t['danger_fill_hover']};
+}}
+QPushButton#DangerBtn:pressed {{
+    background: {t['danger_fill_press']};
+    border-color: {t['danger_fill_press']};
+}}
+/* 危险按钮必须**显式**写禁用态：id 选择器比 `QPushButton:disabled` 更具体，
+   不写这一条，禁用中的「删除到回收站」会照旧红底红字，看着像能点
+   （实测去掉这条后禁用态仍是 #ff5a5a）。 */
+QPushButton#DangerBtn:disabled {{
+    background: {t['surface2']};
+    border-color: {t['border']};
+    color: {t['faint']};
+}}
 QPushButton#DangerBtn:disabled {{
     color: {t['faint']};
     border-color: {t['border']};

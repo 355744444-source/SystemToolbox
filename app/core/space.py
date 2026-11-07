@@ -30,14 +30,23 @@ def _is_reparse(entry) -> bool:
 
 def find_large_files(root: str, min_size: int = 200 * 1024 * 1024, limit: int = 300,
                      stop_flag=None, progress=None,
-                     max_files: int = 600_000) -> list[tuple[str, int, float]]:
-    """在 root 下找大于阈值的文件，按体积降序。"""
+                     max_files: int = 600_000,
+                     stats: dict | None = None) -> list[tuple[str, int, float]]:
+    """在 root 下找大于阈值的文件，按体积降序。
+
+    `stats`（可选）回填 `scanned / matched / shown / truncated`：
+    找到 500 个但只返回 300 个时，界面不能只写「共 300 个」——
+    用户会以为这台机器的大文件就这么多。
+    """
     found: list[tuple[str, int, float]] = []
+    if stats is not None:
+        stats.update({"scanned": 0, "matched": 0, "shown": 0, "truncated": False})
     if not os.path.isdir(root):
         return found
     seen = 0
     root_depth = os.path.normpath(root).count(os.sep)
     stack = [os.path.normpath(root)]
+    hit_cap = False
     while stack:
         if stop_flag and stop_flag[0]:
             break
@@ -51,6 +60,7 @@ def find_large_files(root: str, min_size: int = 200 * 1024 * 1024, limit: int = 
                 seen += 1
                 if seen > max_files:
                     stack.clear()
+                    hit_cap = True
                     break
                 if progress and seen % 1000 == 0:
                     progress(seen, cur)
@@ -68,6 +78,10 @@ def find_large_files(root: str, min_size: int = 200 * 1024 * 1024, limit: int = 
                 if st.st_size >= min_size:
                     found.append((e.path, st.st_size, st.st_mtime))
     found.sort(key=lambda x: -x[1])
+    if stats is not None:
+        stats.update({"scanned": seen, "matched": len(found),
+                      "shown": min(len(found), limit),
+                      "truncated": hit_cap or len(found) > limit})
     return found[:limit]
 
 
@@ -81,6 +95,9 @@ class DirNode:
     mtime: float = 0.0
     children: list["DirNode"] = field(default_factory=list)
     error: bool = False
+    # 统计过程中撞到 max_files 上限（或用户按了停止）：size 是**下限**而不是真值。
+    # 不加这个标记，界面会把「跑到一半就停了」的 1.2 GB 当成完整结果报出来。
+    truncated: bool = False
 
     @property
     def depth(self) -> int:
@@ -88,15 +105,17 @@ class DirNode:
 
 
 def _dir_size(path: str, stop_flag=None, counter=None,
-              max_files: int = 2_000_000) -> tuple[int, int, float, bool]:
-    """递归统计目录总大小 / 文件数 / 最新修改时间。"""
+              max_files: int = 2_000_000) -> tuple[int, int, float, bool, bool]:
+    """递归统计目录总大小 / 文件数 / 最新修改时间 / 读失败 / 是否被截断。"""
     total = 0
     count = 0
     newest = 0.0
     failed = False
+    cut = False
     stack = [path]
     while stack:
         if stop_flag and stop_flag[0]:
+            cut = True          # 用户中途停止：已算出的数字同样只是下限
             break
         cur = stack.pop()
         try:
@@ -122,8 +141,8 @@ def _dir_size(path: str, stop_flag=None, counter=None,
                 if counter is not None:
                     counter[0] += 1
                     if counter[0] > max_files:
-                        return (total, count, newest, failed)
-    return (total, count, newest, failed)
+                        return (total, count, newest, failed, True)
+    return (total, count, newest, failed, cut)
 
 
 def analyze_dir(path: str, stop_flag=None, progress=None, counter=None,
@@ -165,12 +184,13 @@ def analyze_dir(path: str, stop_flag=None, progress=None, counter=None,
             break
         if progress:
             progress(i, len(entries), os.path.basename(sub))
-        size, files, newest, failed = _dir_size(sub, stop_flag, counter)
+        size, files, newest, failed, cut = _dir_size(sub, stop_flag, counter)
         node = DirNode(path=sub, name=os.path.basename(sub), size=size,
-                       files=files, mtime=newest, error=failed)
+                       files=files, mtime=newest, error=failed, truncated=cut)
         root.children.append(node)
     root.size = direct + sum(c.size for c in root.children)
     root.files = direct_files + sum(c.files for c in root.children)
+    root.truncated = bool(stop_flag and stop_flag[0]) or any(c.truncated for c in root.children)
     root.mtime = max([root_newest] + [c.mtime for c in root.children]) if root.children else root_newest
     root.children.sort(key=lambda c: -c.size)
     return root

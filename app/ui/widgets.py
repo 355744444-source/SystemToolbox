@@ -800,12 +800,14 @@ class DropZone(QFrame):
 
 
 def ghost_button(text: str, icon: str = "") -> QPushButton:
-    """次要按钮：浅填充 + 描边，用于「全选 / 打开目录 / 刷新」这类辅助动作。"""
+    """动作按钮。v2.2.0 起与 `primary_button` 外观完全相同（蓝实心白字）：
+    全应用只有一种动作按钮，层级交给位置和文案表达。
+    函数名和 `role="ghost"` 保留，是因为 70 处调用没必要为此改一遍。"""
     b = QPushButton(text)
     b.setProperty("role", "ghost")
     b.setCursor(Qt.PointingHandCursor)
     if icon:
-        b.setIcon(make_icon(icon, theme.current()["text"], 16))
+        b.setIcon(make_icon(icon, "#FFFFFF", 16))
         b.setIconSize(QSize(16, 16))
     return b
 
@@ -822,21 +824,22 @@ def bare_button(text: str, icon: str = "") -> QPushButton:
 
 
 def primary_button(text: str, icon: str = "") -> QPushButton:
+    """动作按钮（与 `ghost_button` 同款，见上）。"""
     b = QPushButton(text)
     b.setProperty("role", "primary")
     b.setCursor(Qt.PointingHandCursor)
     if icon:
         b.setIcon(make_icon(icon, "#FFFFFF", 15))
         b.setIconSize(QSize(15, 15))
-    b.setMinimumHeight(32)
     return b
 
 
 def plain_button(text: str, icon: str = "") -> QPushButton:
+    """不设 role 的动作按钮 —— 同样蓝实心（v2.2.0 起 base 就是蓝实心）。"""
     b = QPushButton(text)
     b.setCursor(Qt.PointingHandCursor)
     if icon:
-        b.setIcon(make_icon(icon, theme.current()["text"], 15))
+        b.setIcon(make_icon(icon, "#FFFFFF", 15))
         b.setIconSize(QSize(15, 15))
     return b
 
