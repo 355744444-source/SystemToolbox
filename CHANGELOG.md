@@ -200,6 +200,20 @@ Toolhelp **不需要打开目标进程**就能拿到 `szExeFile`，这个理由�
 - 打包核对：`dist\SystemToolbox.exe` 23.3 MB，版本资源 `文件版本 2.3.0.0 /
   产品版本 2.3.0.0`，`--version` 输出 `v2.3.0`，`--selftest` → `RESULT: OK`
 
+### 十一、发布（发版后补充，无代码改动）
+
+GitHub 上原来只有源码树里的一份 `dist/SystemToolbox.exe`，要下载 exe 得先进 `dist/`
+目录点文件、再点 Download —— 对外交付时这个路径不直观。这一节补三件事：
+
+- 打 **`v2.3.0`** 注解标签并推送，版本快照可在 Tags 页面直接对照
+- 建 **Release v2.3.0**，把 exe 作为附件上传（`SystemToolbox_v2.3.0.exe`，
+  23,278,758 字节，SHA256 `F653DE5F…7E55D`）；Release 页面下方同时提供该版本的
+  `Source code (zip)` / `(tar.gz)` 源码快照 —— **exe 与源码同一个入口**
+- README 顶部新增「## 下载」一节：exe 下载地址（Release + 仓库内两份）、源码获取方式、
+  SHA256 自核命令、运行环境与是否需要管理员
+
+exe 二进制本身未重新打包，版本资源仍是 `2.3.0.0`，与上节核对结果一致。
+
 ---
 
 ## v2.2.0 (2026-11-07)

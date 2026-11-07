@@ -2,6 +2,22 @@
 
 一个 exe 覆盖 Windows 现场运维的九类事：**看日志、看蓝屏、清垃圾、治残留、做优化、查网络、做体检、测 U 盘、查开机**，并且把结论直接说出来。
 
+## 下载
+
+- **exe（免安装单文件，23.3 MB）** → [Releases · 最新版](https://github.com/355744444-source/SystemToolbox/releases/latest)
+  下载 `SystemToolbox_v2.3.0.exe`，双击即可运行。
+  仓库里也存了一份：[`dist/SystemToolbox.exe`](https://github.com/355744444-source/SystemToolbox/raw/main/dist/SystemToolbox.exe)
+- **源代码** → 本仓库 `main` 分支（`git clone https://github.com/355744444-source/SystemToolbox.git`）；
+  每个 Release 页面下方另有该版本的 `Source code (zip)` / `Source code (tar.gz)` 快照。
+- **校验** → SHA256 `F653DE5FCB5DBC64D545C254489D99E1870ABA5E03A6CF8884A02BBC49A7E55D`
+  （v2.3.0，`certutil -hashfile SystemToolbox.exe SHA256` 可自核）
+- **环境** → Windows 10 / 11 x64，无需安装 Python；不加管理员也能跑只读诊断，少数能力（服务启停、
+  部分开机记录通道）需要右键「以管理员身份运行」。
+
+自己从源码构建：`pip install PyQt5 pyinstaller` →
+`python -m PyInstaller --noconfirm --workpath build_work --distpath dist build.spec`，
+产物在 `dist/SystemToolbox.exe`（详见下文「开发」）。
+
 - **日志分析**：原生 `wevtapi` 读实时通道与离线 `.evtx`，关联分析出「蓝屏 / 掉电 / 磁盘 / 硬件 / 服务 / 应用」结论
 - **蓝屏转储**：纯本地解析 MDMP 与内核转储，给出蓝屏码、参数、异常码、故障模块与模块内偏移；可选 cdb 符号增强。
   **一个按钮读出本机全部蓝屏代码**：不用先找文件 —— 自动扫 Minidump / MEMORY.DMP / LiveKernelReports
