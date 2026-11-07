@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""界面冒烟单测：离屏建八个工作台，锁住「能建起来 + 关键控件在」这条底线。
+"""界面冒烟单测：离屏把所有工作台建一遍，锁住「能建起来 + 关键控件在」这条底线。
 
 以前 `tests/ui_smoke.py` 只是截图脚本，文件名不符合 `test_*.py`，
 `unittest discover` 根本不收集 —— 590 项单测里 UI 零覆盖。这里补上。
@@ -43,7 +43,7 @@ class LazyBuildTest(unittest.TestCase):
 
 
 class BuildTest(unittest.TestCase):
-    """一个窗口建一次，八页全建完共用。"""
+    """一个窗口建一次，所有页建完共用。"""
 
     @classmethod
     def setUpClass(cls):
@@ -53,15 +53,17 @@ class BuildTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.win = None
 
-    def test_rail_has_eight_buttons(self):
-        self.assertEqual(len(TABS), 8)
-        self.assertEqual(len(self.win.rail_buttons), 8)
+    def test_rail_has_one_button_per_tab(self):
+        # 不锁具体数字：加工作台是常态，锁死数字只会让每次加页都得改这里。
+        # 真正要守的是「TABS 和导航按钮一一对应」。
+        self.assertEqual(len(self.win.rail_buttons), len(TABS))
+        self.assertGreaterEqual(len(TABS), 8)
 
     def test_window_title_is_set(self):
         # 标题里没有版本号（版本在「关于」里），这里只锁「有标题、不是空窗」
         self.assertIn("系统万能工具箱", self.win.windowTitle())
 
-    def test_all_eight_pages_build(self):
+    def test_all_pages_build(self):
         for i in range(len(TABS)):
             page = self.win.page(i)
             self.assertIsInstance(page, QWidget, "第 %d 页没建起来" % i)
@@ -119,7 +121,8 @@ class SingleSkinTest(unittest.TestCase):
         texts = [b.text() for b in self.win.rail_buttons]
         self.assertNotIn("浅色", texts)
         self.assertNotIn("深色", texts)
-        self.assertEqual(len(self.win.rail_buttons), 8, "导航按钮数不该变")
+        self.assertEqual(len(self.win.rail_buttons), len(TABS),
+                         "导航按钮数应与 TABS 一致")
 
     def test_window_has_no_switch_api(self):
         for name in ("btn_theme", "toggle_theme", "theme_name", "apply_theme"):

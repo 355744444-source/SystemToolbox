@@ -268,6 +268,14 @@ def _draw(kind: str, p: QPainter, color: QColor) -> None:
         path.moveTo(4.6, 17.0)
         path.arcTo(QRectF(4.6, 14.3, 14.8, 5.4), 180, -180)
         p.drawPath(path)
+    elif kind == "boot":
+        # 电源符号：顶部留口的圆环 + 一根竖线。
+        # 比画「开机进度条」好认 —— 22px 下条状图形会缩成一根线。
+        p.drawArc(QRectF(4.6, 5.0, 14.8, 14.8), 112 * 16, 316 * 16)
+        p.drawLine(QPointF(12, 3.0), QPointF(12, 10.6))
+        # 圆环右侧一个向上的小箭头：把「耗时」的语义带进来
+        p.drawLine(QPointF(17.4, 8.6), QPointF(19.6, 6.4))
+        p.drawLine(QPointF(19.6, 6.4), QPointF(19.6, 9.2))
 
 
 #: `make_icon` 的结果缓存。左侧导航每次切页都要重刷 10 个图标，

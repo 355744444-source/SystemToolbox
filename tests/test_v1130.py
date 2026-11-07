@@ -395,10 +395,17 @@ class TestHelpers(unittest.TestCase):
         self.assertEqual(got, [(path, 4096)])
 
     def test_pagefile_facts_fallback(self):
-        # stat 全失败时用提交上限差值兜底，但要保留路径
-        got = d.pagefile_facts([r"C:\pagefile.sys"], [], fallback_total=2 * GB)
+        # stat 全失败时用提交上限差值兜底，但要保留路径。
+        # 注意：不能拿真实的 C:\pagefile.sys 当输入 —— 真机上它通常存在，
+        # stat 会成功，于是根本走不到兜底分支，这条用例就会随机器不同而红。
+        import tempfile
+        ghost = os.path.join(tempfile.gettempdir(),
+                             "sys_toolbox_no_such_%d.sys" % os.getpid())
+        self.assertFalse(os.path.exists(ghost))
+        got = d.pagefile_facts([ghost], [], fallback_total=2 * GB)
         self.assertEqual(len(got), 1)
         self.assertEqual(got[0][1], 2 * GB)
+        self.assertEqual(got[0][0], ghost)
 
     def test_pagefile_facts_skips_system_managed_placeholder(self):
         # PagingFiles 里 "?:\pagefile.sys" 盘符未知，不能当真实路径去 stat

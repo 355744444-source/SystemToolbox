@@ -18,6 +18,7 @@ from ..core import settings
 from ..core.report import COMPANY, VERSION
 from . import motion, notice
 from .clean_page import CleanPage
+from .boot_page import BootPage
 from .dump_page import DumpPage
 from .health_page import HealthPage
 from .usb_page import UsbPage
@@ -41,14 +42,16 @@ TABS = (
     ("系统体检", "health", "设备驱动 · 升级条件 · 实时占用 · 安全基线 · 系统文件 · "
                           "磁盘 SMART · 硬件错误 · 崩溃转储 · 环境变量 · 驱动体检"),
     ("U 盘测速", "speed", "顺序读写 · 4K 随机读 · 接口判定 · 同盘历史对比"),
+    ("开机诊断", "boot", "Windows 自带的开机耗时记录：进系统前 / 桌面出来后 / 谁在拖时间"),
 )
 
 # 页面按 TABS 顺序懒建：启动时只建第一个工作台，其余首次切换时才建。
-# 八个页面全量构造实测 1081ms（清理 / 日志 / 体检最重），而用户开机只看第一个。
+# 九个页面全量构造实测 1081ms（清理 / 日志 / 体检最重），而用户开机只看第一个。
 PAGE_CLASSES = (LogPage, DumpPage, CleanPage, ResiduePage, OptimizePage,
-                NetPage, HealthPage, UsbPage)
+                NetPage, HealthPage, UsbPage, BootPage)
 PAGE_ATTRS = ("log_page", "dump_page", "clean_page", "residue_page",
-              "optimize_page", "net_page", "health_page", "usb_page")
+              "optimize_page", "net_page", "health_page", "usb_page",
+              "boot_page")
 
 
 class RailButton(QToolButton):
@@ -61,13 +64,14 @@ class RailButton(QToolButton):
         self.setObjectName("RailBtn")
         self.setCheckable(True)
         self.setCursor(Qt.PointingHandCursor)
-        self.setFixedSize(64, 58)
+        self.setFixedSize(64, 54)
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(f"{APP_NAME} · 日志 / 转储 / 清理 / 残留 / 优化 / 网络 / 体检 / 测速")
+        self.setWindowTitle(f"{APP_NAME} · 日志 / 转储 / 清理 / 残留 / 优化 / "
+                            f"网络 / 体检 / 测速 / 开机")
         # 主题切换会整窗重建，所以每个新窗口都要重新挂一次图标
         ic = app_icon()
         if not ic.isNull():
@@ -118,8 +122,11 @@ class MainWindow(QMainWindow):
         rail = motion.RailView()
         rail.setFixedWidth(84)
         v = QVBoxLayout(rail)
-        v.setContentsMargins(10, 16, 10, 14)
-        v.setSpacing(8)
+        v.setContentsMargins(10, 14, 10, 12)
+        # 九个工作台 + 关于必须塞进最小窗口高度（740 - 页头 66 - 状态栏 28 = 646）：
+        # 9×54 + 9×6 + 26 + 54 + 6 = 626。按钮是 setFixedSize，布局压不动它，
+        # 多出来的部分会被直接裁掉（第十个按钮起就得改这里）。
+        v.setSpacing(6)
 
         self.group = QButtonGroup(self)
         self.group.setExclusive(True)
@@ -138,6 +145,7 @@ class MainWindow(QMainWindow):
         self.btn_net = self.rail_buttons[5]
         self.btn_health = self.rail_buttons[6]
         self.btn_usb = self.rail_buttons[7]
+        self.btn_boot = self.rail_buttons[8]
         self.btn_log.setChecked(True)
         self.group.idClicked.connect(self._switch)
         v.addStretch(1)
@@ -168,7 +176,7 @@ class MainWindow(QMainWindow):
         self.title.setObjectName("H1")
         box.addWidget(self.title)
         self.subtitle = QLabel("事件日志 · 崩溃转储 · 垃圾清理 · 残留治理 · 系统优化 · "
-                               "网络诊断 · 系统体检 · U 盘测速")
+                               "网络诊断 · 系统体检 · U 盘测速 · 开机诊断")
         self.subtitle.setProperty("role", "dim")
         box.addWidget(self.subtitle)
         h.addLayout(box)
@@ -179,7 +187,7 @@ class MainWindow(QMainWindow):
         return bar
 
     def _build_pages(self) -> None:
-        # 先铺 7 个空占位，保证 stack 索引与导航按钮一一对应；
+        # 先铺与工作台数量相同的空占位，保证 stack 索引与导航按钮一一对应；
         # 真正的页面在 _ensure_page 里 replaceWidget 顶上去。
         self._pages: list[QWidget | None] = [None] * len(PAGE_CLASSES)
         for name in PAGE_ATTRS:
@@ -286,13 +294,14 @@ class MainWindow(QMainWindow):
             ("网络诊断", "网卡 · 外网 · 网关 · DNS · 端口 · 代理 / hosts，按层定位「连不上」"),
             ("系统体检", "设备驱动 · 升级条件 · 实时占用 · 安全基线 · 系统文件 · 磁盘 · 硬件错误 · 崩溃转储 · 环境变量 · 驱动签名"),
             ("U 盘测速", "顺序读写、4K 随机读、接口判定、同一块盘的历史对比"),
+            ("开机诊断", "开机耗时拆成八段 · 慢项按出现次数排序 · 关机与睡眠一并看"),
         )
         body = "<br>".join("· <b>%s</b> —— %s" % (a, b) for a, b in rows)
         dim = theme.current()["dim"]      # 不能用固定色：换配色时固定色会糊成一片
         notice.note(
             self, "info",
             "<b>%s SystemToolbox v%s</b>　·　%d 个工作台　·　发行：%s<br>%s<br>"
-            "<span style='color:%s'>快捷键：Ctrl+1~8 切换工作台"
+            "<span style='color:%s'>快捷键：Ctrl+1~9 切换工作台"
             " · F5 重新读取日志　·　全程只读，改动类操作逐项可还原</span>"
             % (APP_NAME, VERSION, len(TABS), COMPANY, body, dim),
             timeout=0)
@@ -425,7 +434,7 @@ class MainWindow(QMainWindow):
         if e.modifiers() & Qt.ControlModifier:
             key_map = {Qt.Key_1: 0, Qt.Key_2: 1, Qt.Key_3: 2,
                        Qt.Key_4: 3, Qt.Key_5: 4, Qt.Key_6: 5,
-                       Qt.Key_7: 6, Qt.Key_8: 7}
+                       Qt.Key_7: 6, Qt.Key_8: 7, Qt.Key_9: 8}
             if e.key() in key_map:
                 i = key_map[e.key()]
                 self.rail_buttons[i].setChecked(True)

@@ -1,6 +1,6 @@
 # 系统万能工具箱 SystemToolbox
 
-一个 exe 覆盖 Windows 现场运维的八类事：**看日志、看蓝屏、清垃圾、治残留、做优化、查网络、做体检、测 U 盘**，并且把结论直接说出来。
+一个 exe 覆盖 Windows 现场运维的九类事：**看日志、看蓝屏、清垃圾、治残留、做优化、查网络、做体检、测 U 盘、查开机**，并且把结论直接说出来。
 
 - **日志分析**：原生 `wevtapi` 读实时通道与离线 `.evtx`，关联分析出「蓝屏 / 掉电 / 磁盘 / 硬件 / 服务 / 应用」结论
 - **蓝屏转储**：纯本地解析 MDMP 与内核转储，给出蓝屏码、参数、异常码、故障模块与模块内偏移；可选 cdb 符号增强。
@@ -32,8 +32,13 @@
   `SystemToolbox.exe --scan --json` 同一套判断，供 IT 批量采集
 - **U 盘测速**：绕过系统缓存的顺序读写、4K 随机读、接口判定（能识别「USB 3.x 盘插在 2.0 口」）、
   同盘历史对比（写入掉速 30% 以上提示老化）；只创建自己的临时文件，同名即放弃、测完必删
+- **开机诊断**：读 Windows 自己量的开机耗时（`Diagnostics-Performance` 通道，每次开机自动记录），
+  把 `BootTime` 拆成「进系统前 / 桌面出来后」，再拆成**八个阶段**（引导加载、内核、驱动与设备、
+  预取与自检、会话与服务、用户配置与桌面、登录后后台、Windows 未细分的残差），
+  **跟本机自己的基线比**而不是比固定阈值；慢项按「重复出现」排序点名到具体应用 / 驱动 /
+  服务 / 设备；关机与睡眠恢复一并给。全程只读，不改电源计划、不关启动项
 - 导出单文件 HTML 现场报告与 Excel 明细；**每张表都能右键复制 / 导出 CSV**
-- **三十九张表都能点表头排序**（数字按数值、带单位按实际大小、版本号按段比，
+- **四十三张表都能点表头排序**（数字按数值、带单位按实际大小、版本号按段比，
   空值排最后，右键可「恢复原顺序」）；行数多的表（设备 354 行、IO 告警、硬件错误、
   驱动包）上方带**实时筛选框**，勾选状态跟着行走，排序筛选都不会错位
 - **运行时不弹任何模态窗口**：完成、失败、警告都是页面顶部一条提示（几秒后自己消失），
@@ -41,7 +46,7 @@
 
 界面：深色取证台单一皮肤（v2.0.0 移除浅色），导航选中块按弹簧物理滑行、切页淡入，并跟随系统「显示动画」开关自动降级。发行：江苏振远智能科技有限公司。
 
-打包：单文件 **23.0 MB**，冷启动到首帧约 **1.3 秒** —— 八个工作台按需构建，PDH 磁盘计数器在后台预热。
+打包：单文件 **23.3 MB**，冷启动到首帧约 **1.3 秒** —— 九个工作台按需构建，PDH 磁盘计数器在后台预热。
 
 动效：导航选中块是**一个**跟着走的块（阻尼比 0.86、角频率 22，350 ms 落定、超调 0.5% 即 1.6 px），
 连续点选会从当前位置拐弯而不是排队重放；切页只做 150 ms 透明度柔化（从 0.35 起，不从 0 起）。
@@ -77,6 +82,8 @@ KPI 的数字是 22 px、单位降到 13 px 且用次要色 —— 两个都 22 
 ![页内确认·永久删除](docs/38_页内确认_永久删除.png)
 ![U 盘测速](docs/27_U盘测速_结果_深色.png)
 ![宽带测速](docs/28_网络诊断_宽带测速_深色.png)
+![开机诊断](docs/42_开机诊断_概况_深色.png)
+![开机慢项排行](docs/43_开机诊断_慢项排行_深色.png)
 
 导航选中块是按弹簧物理滑过去的（不是各自闪背景），连点会从当前位置拐弯：
 
@@ -98,7 +105,7 @@ dist\SystemToolbox.exe "D:\现场\MEMORY.DMP"
 dist\SystemToolbox.exe --selftest
 ```
 
-快捷键：`Ctrl+1~8` 切换工作台 · `F5` 重新读取日志。
+快捷键：`Ctrl+1~9` 切换工作台 · `F5` 重新读取日志。
 
 读 `C:\Windows\Minidump`、`MEMORY.DMP`、安全日志，以及清理系统缓存、
 整理磁盘、修复系统级注册表项，都需要**以管理员身份运行**
@@ -134,6 +141,7 @@ dist\SystemToolbox.exe --selftest
 | 崩溃转储 | 只读 `CrashControl` 键值、页面文件大小与 System 通道事件；**不改启动和恢复设置、不动页面文件**，修复只给路径与做法 |
 | 文件占用 | 只向 Restart Manager **查询**登记关系，不关进程、不卸载、不强行删除；查不到的内核态占用单独标注，不硬猜 |
 | 环境变量 | 只读注册表 `Environment` 与进程环境块；**不改 PATH、不写用户变量**，建议里只给「哪儿改、删哪条」 |
+| 开机诊断 | 只读 `Diagnostics-Performance/Operational` 通道与一个注册表值（`HiberbootEnabled`，用来判断是不是「快速启动」口径）；**不改电源计划、不关启动项、不动注册表**，建议只写「该去哪儿关什么」；非管理员时明确说「需要提权」，不假装「没有记录」 |
 | 驱动体检 | 只读 `DriverDatabase`、`EnumDeviceDrivers` 与文件签名；**不装驱动、不卸载设备、不改服务启动类型**；签名结论缓存 143 KB 在 `%LOCALAPPDATA%\SystemToolbox\`，文件变了自动失效 |
 | 签名校验 | 只做本地 `WinVerifyTrust` + 目录签名比对，`WTD_CACHE_ONLY_URL_RETRIEVAL` 不联网拉吊销列表；结论里不承诺吊销状态 |
 
@@ -179,6 +187,7 @@ CrashLogSuite/
 │  │  ├─ locks.py           文件占用排查（Restart Manager / 二分定位 / 内核独占识别）
 │  │  ├─ pathenv.py         环境变量体检（PATH 失效·重复·变量未定义）
 │  │  ├─ drivers.py        驱动体检（包数据库·签名并行校验·已加载模块）
+│  │  ├─ boot.py          开机与登录诊断（Diagnostics-Performance 事件 100/101~110/200~203/300~303 · 八阶段拆解 · 相对基线判定）
 │  │  ├─ settings.py      偏好存储（窗口位置，写 LOCALAPPDATA 的单个 JSON）
 │  │  ├─ sign.py            Authenticode 校验（内嵌签名 + 目录签名补判）
 │  │  ├─ security.py        安全基线只读检查（10 项）
@@ -187,6 +196,7 @@ CrashLogSuite/
 │     ├─ main_window.py     主窗口、导航 rail、全局拖放
 │     ├─ motion.py          流体交互层（弹簧曲线 / 可打断滑动 / 页面淡入 / 跟随系统动画开关）
 │     ├─ usb_page.py        U 盘测速工作台（盘选择 / 分项结果 / 结论 / 历史）
+│     ├─ boot_page.py       开机诊断工作台（堆叠柱状图 / 五 KPI / 四页签：时间花在哪·慢项排行·开机历史·关机与睡眠）
 │     ├─ log_page.py        日志工作台（KPI / 虚拟表格 / 诊断卡 / 详情）
 │     ├─ dump_page.py       转储工作台（拖放 / KPI / 模块 / 原始字段 / cdb / 本机蓝屏记录）
 │     ├─ clean_page.py      清理优化（垃圾 / 大文件 / 大目录 / 磁盘优化）
@@ -220,7 +230,9 @@ CrashLogSuite/
 │  ├─ test_v200.py          51 项单元测试（体检编排 fold / 结论等级与评分 / 报告导出 / CLI 控制台编码）
 │  ├─ test_tables_v2.py     34 项单元测试（排序键数值/单位/版本/空值 · 勾选按对象身份 · 筛选与排序共存 · 表头挂载）
 │  ├─ test_version_v2.py     9 项单元测试（版本号唯一出处 · exe 版本资源读取）
-│  ├─ test_ui_smoke.py      13 项界面冒烟（八页离屏建页 / 单皮肤断言 / 结论条初始隐藏）
+│  ├─ test_v210.py          62 项单元测试（八段口径 / 相对基线 / 单次慢项不判严重 / 无管理员口径 / 关机器睡眠）
+│  ├─ boot_fixtures.py      开机事件 XML 构造器（真机字段顺序 + 15/5 字段双模板）
+│  ├─ test_ui_smoke.py      13 项界面冒烟（全部工作台离屏建页 / 单皮肤断言 / 结论条初始隐藏）
 │  ├─ gen_fixtures.py       合成转储生成器（x64/x86 内核 + 用户模式）
 │  ├─ ui_smoke.py           离屏渲染冒烟 + 截图（旧脚本，不进 discover）
 │  └─ fixtures/             合成转储样本
@@ -246,6 +258,7 @@ CrashLogSuite/
 │  ├─ probe_motion_gif.py   把导航滑动录成 GIF（静态图看不出运动）
 │  ├─ probe_visual.py       视觉层实测（数字是否等宽 / 阴影开销 / 字距影响）
 │  ├─ probe_usb_result.py   回放真实测速记录重拍 U 盘结果页（盘不在手边时用）
+│  ├─ probe_boot.py         第九工作台探针（构造样本 → 堆叠图 / 八行阶段表 / 溢出检查 / 四张截图）
 │  └─ gen_docs.py           生成 docs/ 界面截图
 ├─ samples/                 样例报告（真实日志 + 合成转储）
 ├─ docs/                    界面截图
@@ -255,7 +268,7 @@ CrashLogSuite/
 ## 开发
 
 ```bat
-:: 测试（370 项）
+:: 测试（759 项）
 python -m unittest discover -s tests -v
 
 :: 离屏 UI 冒烟并出截图
@@ -270,6 +283,9 @@ python tools/probe_net.py && python tools/probe_net_ui.py && python tools/probe_
 :: 系统体检五块
 python tools/probe_devices.py && python tools/probe_upgrade.py
 python tools/probe_health.py && python tools/probe_health_ui.py
+
+:: 开机诊断（构造样本，不需要管理员）
+python tools/probe_boot.py
 
 :: 进程采样 / 组件健康
 python tools/probe_v160.py && python tools/probe_v160b.py
@@ -333,6 +349,13 @@ python -m PyInstaller --noconfirm --workpath build_work --distpath dist build.sp
 | 淡入不从 0 起 | 从全透明起步时切换后头 45 ms 截图是一片空白，感知是「卡了半拍」；从 0.35 起内容立刻就在，只留明暗柔化 |
 | 挂着透明度效果会拖慢滚动 | `QGraphicsOpacityEffect` 会让控件走离屏渲染，所以动画一结束立刻 `setGraphicsEffect(None)` |
 | 动效要能关 | 读 `SPI_GETCLIENTAREAANIMATION`，系统关掉「显示动画」时时长全部归零（晕动症 / 远程桌面 / 录屏的人都靠这个） |
+| 事件字段按名字取，不按位置 | `Diagnostics-Performance` 的 `EventData` 里 `Name` 属性是英文的，本地化只影响消息正文 —— 所以 `BootTime` / `MainPathBootTime` 在中文版、英文版机器上是同一个名字。按 `Data[3]` 取位置的话，微软哪天插一个字段就全错位 |
+| 开机快慢跟自己的基线比 | 同一台 22 秒正常、另一台 45 秒也正常，固定阈值会把一半正常机器标红。改成「相对本机最近若干次中位数 ≥ 1.6 倍 **且** 多花 ≥ 1.5 秒 **且** 至少 3 次样本」，三个条件缺一不可 |
+| 单次异常不许判「严重」 | 一条只出现过一次的 16 秒应用超时，曾把总时长 62 秒（基线 53 秒）的机器判成「严重」。现在 crit 要求「≥ 90 秒」或「≥ 45 秒且存在平均每次多花 ≥ 20 秒的重复项」；判定列按出现次数上色，不按严重程度上色 |
+| 残差不假装成 100% | 八段能归因的只占 `MainPathBootTime` 的一部分（实测一台 `MainPath=64858` 有 34 秒在 Session Init 与 Winlogon 等待里），剩下单列「会话与登录（未细分）」并给出查证方向 |
+| 查询错误会被「容忍」掉 | `EvtQuery` 带 `EvtQueryTolerateQueryErrors` 时，非管理员读系统通道返回 **0 个事件 + 一个查询错误**，不抛异常。不先查 `is_admin()` 就会显示「还没有开机记录」，把用户引去重启一台没问题的机器 |
+| 混用 QPoint / QPointF 会静默崩溃 | `drawLine(QPoint, QPointF)` 落不到任何 C++ 重载上，进程直接消失（退出码 127、无 traceback），try/except 兜不住 —— 只能二分到最小可复现后统一成 `QPointF` |
+| 截图必须用真字体引擎 | 本机 `QT_QPA_PLATFORM=offscreen` 没有字体引擎，截出来 567 字节、字全空白。一律 `windows` 平台 + `WA_DontShowOnScreen`（不上屏，但字体是真的） |
 | 杀软状态不误判 | `Get-MpComputerStatus` 在装了第三方杀软时报「已关闭」，要再查 SecurityCenter2 是否有人在接管 |
 
 ## 许可

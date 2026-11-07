@@ -438,6 +438,44 @@ def _selftest() -> int:
             ok = False
             lines.append("usb FAILED: 第八工作台没接上")
 
+        # 第九工作台（v2.1.0）：开机诊断。通道要管理员才读得到，
+        # 所以「读不到」不算失败，但「解析口径不对」必须红。
+        from app.core import boot as bootmod
+        brep = bootmod.scan(with_registry=False)
+        lines.append(f"boot ok: events={brep.event_total} records={brep.count} "
+                     f"slow={len(brep.slow)} misc={len(brep.misc)} "
+                     f"admin={brep.admin} cost={brep.cost_ms}ms "
+                     f"headline={brep.short_line[:48]}")
+        if brep.error:
+            # 非管理员读这个通道本来就是空的（EvtQuery 容错后返回 0 条）
+            lines.append("boot skip: " + ("非管理员，通道读不到属正常"
+                                          if not brep.admin else brep.error))
+        for _r in brep.records[:5]:
+            # 阶段合计不能超过 MainPath（超过了说明字段口径写错、重复计数）
+            if _r.attributed_ms > _r.main_ms + 1000:
+                ok = False
+                lines.append("boot FAILED: 阶段合计 %d > MainPath %d"
+                             % (_r.attributed_ms, _r.main_ms))
+            if _r.boot_ms <= 0 or _r.post_ms > _r.boot_ms + 1000:
+                ok = False
+                lines.append("boot FAILED: 总时长/登录后时长 口径异常")
+        # 合成一次开机，验证拆段与结论在「有数据」时确实跑得通（与真机无关）
+        _fake = bootmod.BootRecord(
+            boot_ms=62000, main_ms=41000, post_ms=21000, apps=12,
+            fields={"BootKernelInitTime": 400, "BootDriverInitTime": 2500,
+                    "BootDevicesInitTime": 1500, "BootSmssInitTime": 12000,
+                    "BootCriticalServicesInitTime": 800,
+                    "BootUserProfileProcessingTime": 3000,
+                    "BootExplorerInitTime": 6000})
+        _sum = sum(p.ms for p in _fake.phases if p.in_boot)
+        if _sum != _fake.main_ms + _fake.post_ms:
+            ok = False
+            lines.append("boot FAILED: 拆段合计 %d != MainPath+PostBoot %d"
+                         % (_sum, _fake.main_ms + _fake.post_ms))
+        if win.page(8) is None or not hasattr(win.page(8), "reload"):
+            ok = False
+            lines.append("boot FAILED: 第九工作台没接上")
+
         cand = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests", "fixtures")
         base = getattr(sys, "_MEIPASS", BASE)
         for d in (cand, os.path.join(base, "tests", "fixtures")):
