@@ -1,5 +1,207 @@
 # CHANGELOG · 系统万能工具箱 SystemToolbox
 
+## v2.3.0 (2026-11-07)
+
+把上两版审查时**明确留到后面**的七项做完。这一版没有新页面、没有新功能，
+全部是「同一件事写了好几份」和「失败时兜底方式会害自己」两类问题。
+
+七项的共同点：它们都不产生错误结论，所以不在「界面看着不对」里暴露 ——
+只有在慢机器上多等两秒、在内存吃紧时崩一次、在某个本地化系统上数字错位时
+才会露头。这类问题越晚修越贵，所以集中一版清掉。
+
+### 一、`is_admin` 三份 → 一份
+
+`boot.py` / `cleaner.py` / `component.py` 各有一份**逐字相同**的
+`IsUserAnAdmin()` 封装。三份都能用，问题是「是否管理员」是这台机器上一大半
+结论的前提（读不到服务、读不到开机记录、能不能改注册表），哪天判定口径要变
+（比如加上 UAC 虚拟化检测），得记得改三处 —— 而漏掉一处不会报错，
+只会让某页安静地按「普通用户」降级。
+
+全部指向 `winutil.is_admin`。`cleaner.is_admin` / `boot.is_admin` /
+`component.is_admin` 保留为**同一个对象**的再导出（有断言 `assertIs` ，
+不是「看起来一样的副本」）。
+
+顺带把 `boot.scan()` 里 `is_admin` 的用途写清楚：那个通道在普通用户下
+**不报错，只是返回 0 条**（`EvtQuery` 带 `TolerateQueryErrors`），
+不区分就会把「没权限」说成「这台机器没有开机记录」。
+
+### 二、`human_size` 五份 → 一份（两个例外有理由）
+
+字节数格式化原来散在五处，小数位与进位门槛各不相同：
+
+| 位置 | 48 KB | 512 字节 | 备注 |
+|---|---|---|---|
+| `cleaner.human_size` | `48.0 KB` | `512 B` | 规则最完整 |
+| `minidump.size_text` | `48.0 KB` | `512 B` | 只到 GB |
+| `component._fmt_size` | `48 KB` | **`0 KB`** | **没人调用** |
+| `dumpcfg.human` | `48 KB` | `512 B` | 页面文件核算 |
+| `smart._gb_text` | — | — | GB/TB |
+
+`component._fmt_size` 是死代码，而且它把 512 字节显示成 `0 KB` ——
+一个「有 3 个文件但只有几百字节」的目录会和空目录长得一样。
+**直接删掉**，不留「反正没人调」的第三份。
+
+`minidump.size_text` 与 `smart._gb_text` 改为调用 `fmt.human_size` /
+`fmt.gb_text`；`cleaner.human_size` 变成 `fmt.human_size` 的再导出
+（90 多处调用点不用改）。
+
+**两个例外保留自己的实现，且写清了理由**：
+
+- `dumpcfg.human` 保留两位小数。那是页面文件/转储的**容量核算**：
+  「需要 32.30 GB，现在 2.00 GB，差 **30.25 GB**」——差值是算出来的，
+  按展示规则会舍成 `30.3`，用户拿这个数去设虚拟内存会对不上。
+  单测直接锚住 `30.25`。
+- `drivers.size_text` 保留「未知显示 `—`、小于 1 MB 取整 KB」：
+  它要区分「没有记录」和「0 字节」，两者在驱动列表里含义完全不同。
+
+### 三、PID → 路径三份 → 一份
+
+`locks._proc_exe` / `netdiag._proc_path` / `procs` 里的内联查询，
+同一个 Win32 调用写了三遍。其中：
+
+- **netdiag 那份每次调用都 `ctypes.WinDLL("kernel32")`** —— 一次网络诊断刷新
+  要查几十个端口归属，等于白做几十次 LoadLibrary，而且 `CloseHandle` 的
+  `restype` 没声明。
+- `locks` 那份缓冲 1024、`netdiag` 512、`procs` 520，三份都够用但没人知道为什么。
+
+统一到 `winutil.proc_image_path(pid)` / `image_path_from_handle(h)`。
+后者是关键：`procs` 在枚举时**句柄已经打开**，不必为了拿路径再
+`OpenProcess` 一次（原来就是这么重复做的）。缓冲先用 1 KB，只有真的回
+`ERROR_INSUFFICIENT_BUFFER`（122）才用 32 KB 重试 —— 而不是一律要 32 KB。
+
+`Toolhelp` 的 `PROCESSENTRY32W` 结构也跟着搬到 `winutil`，`procs` 从那里引。
+
+### 四、`services.resolve_mui` 每次新建 DLL
+
+服务的 `DisplayName` / `Description` 大量是 `@%SystemRoot%\system32\xxx.dll,-100`
+这种资源引用，解析靠 `shlwapi.SHLoadIndirectString`。原来**每解析一条就
+新建一次 `WinDLL`**：
+
+```
+400 次解析：32.2 µs/次 → 15.7 µs/次（2.0 倍）
+```
+
+一次服务刷新约 400 个服务 × 2 个字段，省下十几毫秒 —— 不算大钱，但
+`LoadLibrary` 是**只加引用计数、代码里从不 Release** 的，刷十次就是十次
+引用计数上涨。现在 `_shlwapi()` 进程内只配置一次（有 `assertIs` 断言）。
+
+### 五、`locks` 每路径三次 stat → 一次
+
+原来的写法：
+
+```python
+LockFile(path=p, exists=os.path.exists(p), is_dir=os.path.isdir(p),
+         kernel_held=_kernel_held(p) if os.path.exists(p) else "")
+```
+
+**同一行里对同一个路径 stat 了三次**，而三次结果必然一致。目录查询更夸张：
+`os.listdir()` 之后对每个名字 `os.path.isfile()`，500 个文件就是 500 次额外
+系统调用。
+
+实测（200 个文件的目录，`probe_v230.py`）：
+
+```
+expand_target：stat 1 次（原来 1 + 200 次 isfile = 201）
+query_files(10)：stat 10 次（原来 3×10 = 30）
+```
+
+改法：一次 `os.stat()` 拿齐「在不在 / 是不是目录」；目录展开改用
+`os.scandir()` —— 它的 `is_file()` 直接用目录枚举时拿到的类型，不再逐个 stat。
+`query()` 也不再对同一路径补一次 `isdir`（`_classify()` 与 `expand_target()`
+共用那一次 stat）。
+
+### 六、`minidump`：mmap 失败时整读 → 按需 seek
+
+原来的兜底是这一行：
+
+```python
+buf = _Buf(mm if mm is not None else f.read())
+```
+
+`mmap` 会失败（文件被正在崩溃的进程占用、放在网络路径、32 位地址空间不够），
+此时 `f.read()` 把**整个文件**读进内存。MEMORY.DMP 动辄几个 GB ——
+先吃满物理内存，再抛 `MemoryError`，而用户看到的只是「读不了这个转储」。
+
+改成 `_Buf` 支持对着文件句柄按需 seek + 1 MB 块缓存。解析全程只需要几十个
+几十字节的字段，真正读进来的量 < 1 MB：
+
+```
+样本 8 MB → 旧写法整读 8,388,692 字节；新写法块缓存上限 1,048,576 字节
+强制 mmap 失败后仍能解析，结果与 mmap 模式完全一致
+```
+
+单测除了对比两种模式结果一致，还用一个「会计数的文件对象」断言实际读入量
+不超过一个块 —— 否则「按需读」这件事只写在注释里。
+
+### 七、两份 `find_large_files` → 删掉没人调用的那份
+
+`disk.find_large_files` 与 `space.find_large_files` 参数不同
+（`SKIP_DIRS` 不同、深度 8 vs 12、上限 40 万 vs 60 万、limit 200 vs 300），
+而 `disk` 那份**没有任何调用点** —— 是早期实现留下来的。
+
+更值得注意的是：`disk` 那份**不检查 reparse point**（`space` 那份检查），
+遇到 `C:\Documents and Settings` 这类 junction 会跟进去。没人调用所以没出事，
+但这正是「两份实现」的危险：读代码的人不知道哪份是对的。
+
+删除 `disk.find_large_files` 与它专用的 `SKIP_DIRS`（`parse_defrag_percent`
+等后面紧邻的函数**原样保留**，有断言防止连带删除）。
+
+### 八、`sysinfo` 不再依赖 `tasklist` 的千分位逗号
+
+系统信息页的进程列表原来调 `tasklist /fo csv /nh`，再 `csv.reader` 解析，
+内存列 `row[4].replace(",", "")`。
+
+问题在于那列是**本地化文本**（`"1,234 K"`）。字段一旦没被引号包住，
+`csv.reader` 会把 `1,234 K` 拆成两列，整行右移 —— 内存、PID、会话全错位，
+而且**不会报错**，只是数字看起来怪。中文/日文系统上尤其容易踩。
+
+改成复用 `procs`（Toolhelp，本机实测 195 个进程 8~10 ms）：
+
+```
+Toolhelp：196 个进程 → 前 12 行，11.7 ms
+tasklist：194.0 ms（含起控制台子进程）
+```
+
+会话号只对最终显示的前 N 个查（`ProcessIdToSessionId`），不为几百个进程各查一次。
+
+**顺带发现 `netdiag._proc_map()` 也在调 tasklist**，理由是「非管理员
+`OpenProcess` 打不开 Services 会话里的 svchost、System」。理由成立，但
+Toolhelp **不需要打开目标进程**就能拿到 `szExeFile`，这个理由不再成立。
+新增 `winutil.process_name_map()`（196 个进程 4.6 ms），实测网络诊断页 31 条
+监听记录**全部**拿到了进程名，包括 `System` 与 34 个 `svchost.exe`。
+
+### 九、单测 798 → 833（+35）
+
+`tests/test_v230.py` 的重点不是「函数返回什么」，而是**这些重复不会再长回来**：
+
+- `assertIs(cleaner.is_admin, winutil.is_admin)` —— 同一个对象，不是副本
+- 源码扫描：`def is_admin(` / `def human_size(` / `def find_large_files(` /
+  `QueryFullProcessImageNameW.argtypes` 全项目**只允许出现在一个文件**
+- 源码扫描：`"tasklist"` 作为**调用字面量**一处都不许有（注释里提它可以）
+- stat 计数：monkeypatch `os.stat` 数次数，断言 `expand_target` 只 1 次、
+  `query_files(N)` 只 N 次
+- 计数文件对象：断言按需读模式下实际读入 ≤ 1 个块
+- 强制 `mmap` 抛异常：解析结果必须与 mmap 模式一致
+- `assertFalse(hasattr(disk, "find_large_files"))` + `assertTrue(hasattr(disk, "parse_defrag_percent"))`
+  （防「删多了」）
+- `top_processes` 期间把 `subprocess.run` 换成抛异常的桩，确保不再起子进程
+
+### 十、验证
+
+- 单测 **833 项全绿**（1 项跳过：需要管理员的那条真机采集），798 → 833
+- `pyflakes app main.py tests tools/probe_v230.py` 零输出
+- `tools/probe_v230.py` 五项实测（本机 Win11 26H2 / Python 3.13.14）：
+  `resolve_mui` 32.2 → 15.7 µs；`locks` 201 → 1 次 stat；`minidump` 8 MB 整读 →
+  ≤1 MB 块；`top_processes` 194 ms → 11.7 ms（16.5 倍）；`process_name_map`
+  196 进程 4.6 ms 且含 `System`
+- 真实窗口（`QT_QPA_PLATFORM=windows` + `WA_DontShowOnScreen`）逐页复测九个
+  工作台，全部正常渲染；「系统信息」页签刷新后 12 行进程、会话列有值、
+  「共 196 个进程」
+- 打包核对：`dist\SystemToolbox.exe` 23.3 MB，版本资源 `文件版本 2.3.0.0 /
+  产品版本 2.3.0.0`，`--version` 输出 `v2.3.0`，`--selftest` → `RESULT: OK`
+
+---
+
 ## v2.2.0 (2026-11-07)
 
 全应用按钮换成同一种样式：**蓝实心 + 白字 + 6px 圆角**（`#4C9AFF`，与「全部体检」

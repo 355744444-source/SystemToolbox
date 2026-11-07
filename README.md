@@ -206,6 +206,8 @@ CrashLogSuite/
 │  │  ├─ boot.py          开机与登录诊断（Diagnostics-Performance 事件 100/101~110/200~203/300~303 · 八阶段拆解 · 相对基线判定）
 │  │  ├─ settings.py      偏好存储（窗口位置，写 LOCALAPPDATA 的单个 JSON）
 │  │  ├─ sign.py            Authenticode 校验（内嵌签名 + 目录签名补判）
+│  │  ├─ fmt.py             数值格式化单一出处（human_size / gb_text）
+│  │  ├─ winutil.py         Win32 最小公共层（is_admin / PID→路径 / 进程名表 / 句柄类型）
 │  │  ├─ security.py        安全基线只读检查（10 项）
 │  │  └─ usbperf.py         U 盘测速（NO_BUFFERING 读写 / 分级阈值 / 历史对比）
 │  └─ ui/
@@ -249,6 +251,7 @@ CrashLogSuite/
 │  ├─ test_v210.py          62 项单元测试（八段口径 / 相对基线 / 单次慢项不判严重 / 无管理员口径 / 关机器睡眠）
 │  ├─ test_v211.py          19 项单元测试（32 位计数器回绕 / 脏 XML 数值容错 / 截断不报「干净」/ PATH 读不到 / 结论条 / 九页边距与两种标题写法同字号）
 │  ├─ test_v220.py          20 项单元测试（按钮统一蓝实心 / 禁用危险按钮不假装能点 / chip 与 bare 不跟着变 / 九页逐颗取色 / 目录统计截断与 matched≠shown）
+│  ├─ test_v230.py          35 项单元测试（is_admin·human_size·PID→路径 各只有一份出处 / resolve_mui 只加载一次 DLL / stat 次数 / 按需读不整读 / 不再起 tasklist）
 │  ├─ boot_fixtures.py      开机事件 XML 构造器（真机字段顺序 + 15/5 字段双模板）
 │  ├─ test_ui_smoke.py      13 项界面冒烟（全部工作台离屏建页 / 单皮肤断言 / 结论条初始隐藏）
 │  ├─ gen_fixtures.py       合成转储生成器（x64/x86 内核 + 用户模式）
@@ -278,6 +281,7 @@ CrashLogSuite/
 │  ├─ probe_usb_result.py   回放真实测速记录重拍 U 盘结果页（盘不在手边时用）
 │  ├─ probe_boot.py         第九工作台探针（构造样本 → 堆叠图 / 八行阶段表 / 溢出检查 / 四张截图）
 │  ├─ probe_audit.py        界面一致性审计（实测标题字号 objectName vs role / 九页边距与首控件 x / KPI 卡宽 / 字号越界清单）
+│  ├─ probe_v230.py         遗留项效果探针（DLL 缓存 / stat 次数 / 按需读字节数 / tasklist vs Toolhelp 耗时）
 │  └─ gen_docs.py           生成 docs/ 界面截图
 ├─ samples/                 样例报告（真实日志 + 合成转储）
 ├─ docs/                    界面截图
@@ -287,7 +291,7 @@ CrashLogSuite/
 ## 开发
 
 ```bat
-:: 测试（798 项）
+:: 测试（833 项）
 python -m unittest discover -s tests -v
 
 :: 离屏 UI 冒烟并出截图
@@ -307,7 +311,7 @@ python tools/probe_health.py && python tools/probe_health_ui.py
 python tools/probe_boot.py
 
 :: 界面一致性审计（九页边距实测 / objectName 与 role 两种标题写法同字号 / KPI 卡宽）
-python tools/probe_audit.py
+python tools/probe_audit.py && python tools/probe_v230.py
 
 :: 进程采样 / 组件健康
 python tools/probe_v160.py && python tools/probe_v160b.py

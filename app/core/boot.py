@@ -66,6 +66,7 @@ from typing import Optional
 
 from . import evtx
 from .analysis import Finding
+from .winutil import is_admin
 
 CHANNEL = "Microsoft-Windows-Diagnostics-Performance/Operational"
 LOG_GLOB = "Microsoft-Windows-Diagnostics-Performance*Operational.evtx"
@@ -686,17 +687,6 @@ def read_events(limit: int = 400, channel: str = CHANNEL) -> tuple:
     return [], err
 
 
-def is_admin() -> bool:
-    """当前进程是否提权。这个通道普通用户读出来是空的（`EvtQuery` 带
-    `TolerateQueryErrors` 时不会报错，只会返回 0 条）—— 不区分这一点，
-    页面就会把「没权限」说成「这台机器没有开机记录」。"""
-    try:
-        import ctypes
-        return bool(ctypes.windll.shell32.IsUserAnAdmin())
-    except Exception:                     # noqa: BLE001
-        return False
-
-
 def fast_startup_enabled() -> Optional[bool]:
     """快速启动（休眠引导）是否开启。它会让「关机再开」不再等于冷启动。"""
     try:
@@ -843,6 +833,9 @@ def scan(events: Optional[list] = None, limit: int = 400,
          with_registry: bool = True) -> BootScan:
     """扫一次。`events` 可注入，方便单测与离线分析。"""
     t0 = time.perf_counter()
+    # admin 要传下去：这个通道在普通用户下**不报错，只是返回 0 条**（EvtQuery 带
+    # TolerateQueryErrors）。不区分这一点，页面就会把「没权限」说成「这台机器
+    # 没有开机记录」——只读取证工具最不能出的结论。
     s = BootScan(admin=is_admin())
     if events is None:
         events, err = read_events(limit=limit)

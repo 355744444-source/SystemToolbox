@@ -19,6 +19,8 @@ import time
 from ctypes import wintypes
 from dataclasses import dataclass, field
 
+from . import fmt, winutil
+
 IS_WIN = os.name == "nt"
 
 
@@ -529,24 +531,11 @@ def prune_empty_dirs(results) -> None:
 
 
 # ------------------------------------------------------------------ 工具
-def human_size(n: float) -> str:
-    n = float(n)
-    for unit in ("B", "KB", "MB", "GB", "TB"):
-        if abs(n) < 1024.0 or unit == "TB":
-            if unit == "B":
-                return f"{int(n)} B"
-            return f"{n:.1f} {unit}" if n < 100 else f"{n:.0f} {unit}"
-        n /= 1024.0
-    return f"{n:.1f} TB"
-
-
-def is_admin() -> bool:
-    if not IS_WIN:
-        return False
-    try:
-        return bool(ctypes.windll.shell32.IsUserAnAdmin())
-    except Exception:       # noqa: BLE001
-        return False
+# `human_size` / `is_admin` 已经搬去公共模块（v2.3.0），这里只做再导出 ——
+# 全项目 90 多处写的是 `cleaner.human_size(...)`，搬走实现不必跟着改调用点。
+# 谁要格式化体积，请直接用 `app.core.fmt`，不要在这里加第二份。
+human_size = fmt.human_size
+is_admin = winutil.is_admin
 
 
 def relaunch_as_admin() -> bool:

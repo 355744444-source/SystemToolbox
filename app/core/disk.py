@@ -419,54 +419,6 @@ def run_action(action: Action, on_line=None, stop_flag=None) -> tuple[int, list[
     return (p.returncode if p.returncode is not None else -1, lines)
 
 
-# ------------------------------------------------------------------ 大文件
-SKIP_DIRS = {"$recycle.bin", "system volume information", "windows", "program files",
-             "program files (x86)", "programdata", "$windows.~bt", "$windows.~ws",
-             "appdata", "node_modules", ".git", "__pycache__", "venv", ".venv",
-             "windows.old", "recovery", "perflogs"}
-
-
-def find_large_files(root: str, min_size: int = 200 * 1024 * 1024, limit: int = 200,
-                     stop_flag=None, progress=None,
-                     max_files: int = 400_000) -> list[tuple[str, int, float]]:
-    """在 root 下找大于阈值的文件。跳过系统目录与开发缓存，限制遍历量。"""
-    found: list[tuple[str, int, float]] = []
-    seen = 0
-    root_depth = root.rstrip("\\/").count(os.sep)
-    stack = [root]
-    while stack:
-        if stop_flag and stop_flag[0]:
-            break
-        cur = stack.pop()
-        try:
-            it = os.scandir(cur)
-        except OSError:
-            continue
-        with it:
-            for e in it:
-                seen += 1
-                if seen > max_files:
-                    stack.clear()
-                    break
-                if progress and seen % 800 == 0:
-                    progress(seen, cur)
-                try:
-                    if e.is_dir(follow_symlinks=False):
-                        if e.name.lower() in SKIP_DIRS:
-                            continue
-                        if e.path.count(os.sep) - root_depth > 8:
-                            continue
-                        stack.append(e.path)
-                        continue
-                    st = e.stat(follow_symlinks=False)
-                except OSError:
-                    continue
-                if st.st_size >= min_size:
-                    found.append((e.path, st.st_size, st.st_mtime))
-    found.sort(key=lambda x: -x[1])
-    return found[:limit]
-
-
 _PROGRESS_HINTS = ("碎片整理", "完成", "进度", "优化", "complete", "progress",
                    "defragment", "optimiz")
 

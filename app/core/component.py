@@ -35,7 +35,6 @@
 """
 from __future__ import annotations
 
-import ctypes
 import os
 import re
 import subprocess
@@ -43,6 +42,9 @@ import time
 import winreg
 from dataclasses import dataclass, field
 from datetime import datetime
+
+from . import fmt
+from .winutil import is_admin
 
 HKLM = winreg.HKEY_LOCAL_MACHINE
 CBS_KEY = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing"
@@ -139,13 +141,6 @@ class Report:
         if self.warns:
             return "%d 项需要留意，系统文件总体正常" % self.warns
         return "系统文件与组件存储正常"
-
-
-def is_admin() -> bool:
-    try:
-        return bool(ctypes.windll.shell32.IsUserAnAdmin())
-    except Exception:                        # noqa: BLE001
-        return False
 
 
 def cbs_path() -> str:
@@ -369,18 +364,11 @@ def measure_winsxs(stop_flag=None, progress=None, timeout: float = 240.0,
             pass
         if progress and dirs % 2000 == 0:
             try:
-                progress(files, 0, "已扫描 %d 个目录 / %.2f GB" % (dirs, total / 1073741824.0))
+                progress(files, 0, "已扫描 %d 个目录 / %.2f GB"
+                         % (dirs, fmt.bytes_to_gb(total)))
             except Exception:                # noqa: BLE001
                 pass
     return total, files, truncated
-
-
-def _fmt_size(n: int) -> str:
-    if n >= 1073741824:
-        return "%.2f GB" % (n / 1073741824.0)
-    if n >= 1048576:
-        return "%.0f MB" % (n / 1048576.0)
-    return "%.0f KB" % (n / 1024.0)
 
 
 def scan(with_dism: bool = True) -> Report:

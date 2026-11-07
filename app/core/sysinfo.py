@@ -9,9 +9,7 @@
 """
 from __future__ import annotations
 
-import csv
 import ctypes
-import io
 import os
 import platform
 import re
@@ -21,7 +19,8 @@ from ctypes import wintypes
 from dataclasses import dataclass, field
 
 from . import winver
-from .cleaner import human_size, is_admin
+from . import winutil
+from .cleaner import human_size
 from .disk import list_volumes
 
 IS_WIN = os.name == "nt"
@@ -412,33 +411,39 @@ def security_rows() -> list[Info]:
 
 # ------------------------------------------------------------------ 进程
 def top_processes(limit: int = 12, stop_flag=None) -> tuple[list[Proc], int]:
-    """按工作集内存排序取前 N 个进程，同时给出进程总数。"""
+    """按工作集内存排序取前 N 个进程，同时给出进程总数。
+
+    v2.3.0 起不再调 `tasklist`：
+
+    - `tasklist /fo csv` 的内存列是**本地化文本**（"1,234 K"），带千分位逗号。
+      字段一旦没被引号包住，`csv.reader` 会把 "1,234 K" 拆成两列，
+      整行右移 —— 内存、PID、会话全部错位，而且**不会报错**，
+      只是数字看起来怪。中文/日文系统上尤其容易出现。
+    - 它还要起一个控制台子进程（200~400 ms）；`procs` 用 Toolhelp 枚举
+      190 个进程只要 10 ms，且同一份代码已经在「进程监视」页跑了很久。
+
+    会话号只对最终要显示的前 N 个查（`ProcessIdToSessionId`），
+    不必为几百个进程各查一次。
+    """
     if not IS_WIN:
         return ([], 0)
-    out = _run(["tasklist", "/fo", "csv", "/nh"], timeout=20)
-    if not out.strip():
+    try:
+        from . import procs as procs_mod
+        snap = procs_mod.snapshot()
+        rows = snap.rows
+    except Exception:                        # noqa: BLE001
+        # 枚举失败时给空表而不是崩掉整次采集：系统信息页还有很多别的项
         return ([], 0)
-    procs: list[Proc] = []
-    total = 0
-    reader = csv.reader(io.StringIO(out))
-    for row in reader:
+    total = len(rows)
+    rows = sorted(rows, key=lambda p: -p.mem_mb)
+    out: list[Proc] = []
+    for p in rows[:max(0, limit)]:
         if stop_flag and stop_flag[0]:
             break
-        if len(row) < 5:
-            continue
-        raw = row[4].replace(",", "").replace("K", "").replace("k", "").strip()
-        try:
-            mem = int(raw) * 1024
-        except ValueError:
-            mem = 0
-        try:
-            pid = int(row[1])
-        except ValueError:
-            pid = 0
-        procs.append(Proc(name=row[0], pid=pid, mem=mem, session=row[2]))
-        total += 1
-    procs.sort(key=lambda p: -p.mem)
-    return (procs[:limit], total)
+        out.append(Proc(name=p.name, pid=p.pid,
+                        mem=int(p.mem_mb * 1048576),
+                        session=winutil.session_of(p.pid)))
+    return (out, total)
 
 
 # ------------------------------------------------------------------ 汇总
@@ -446,7 +451,7 @@ def collect(stop_flag=None) -> Snapshot:
     snap = Snapshot()
     snap.host = platform.node()
     snap.user = os.environ.get("USERNAME", "")
-    snap.admin = is_admin()
+    snap.admin = winutil.is_admin()
 
     name, ver = os_name()
     snap.ver = winver.current()

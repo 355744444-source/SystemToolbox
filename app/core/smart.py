@@ -38,6 +38,7 @@ from datetime import datetime
 from typing import Optional
 
 from . import evtx
+from . import fmt
 
 CHANNEL = "Microsoft-Windows-Storage-Storport/Health"
 EVENT_HEALTH = 512
@@ -285,9 +286,7 @@ class Disk:
 
 
 def _gb_text(gb: float) -> str:
-    if gb >= 1024:
-        return f"{gb / 1024:.2f} TB"
-    return f"{gb:.0f} GB"
+    return fmt.gb_text(gb)
 
 
 def _add_months_first(dt: datetime) -> str:

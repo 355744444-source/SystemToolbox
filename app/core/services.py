@@ -140,6 +140,26 @@ class Service:
 
 # ------------------------------------------------------------------ API
 _adv_cache = None
+_shlwapi_cache = None
+
+
+def _shlwapi():
+    """配置好 argtypes 的 shlwapi（进程内只加载一次）。
+
+    **必须缓存**：一次服务刷新要解析几百条 DisplayName + Description，
+    原先是每解析一条就 `ctypes.WinDLL("shlwapi")` 一次 —— 每次都是一次
+    LoadLibrary（引用计数一路涨上去，且从来不 Release）。本机 400+ 服务
+    实测一次刷新多花 60~90 ms，全花在重复加载上。
+    """
+    global _shlwapi_cache
+    if _shlwapi_cache is not None:
+        return _shlwapi_cache
+    sh = ctypes.WinDLL("shlwapi", use_last_error=True)
+    sh.SHLoadIndirectString.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR,
+                                        wintypes.UINT, ctypes.c_void_p]
+    sh.SHLoadIndirectString.restype = ctypes.c_long
+    _shlwapi_cache = sh
+    return sh
 
 
 def resolve_mui(text: str) -> str:
@@ -152,10 +172,7 @@ def resolve_mui(text: str) -> str:
     if not s.startswith("@"):
         return s
     try:
-        sh = ctypes.WinDLL("shlwapi", use_last_error=True)
-        sh.SHLoadIndirectString.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR,
-                                            wintypes.UINT, ctypes.c_void_p]
-        sh.SHLoadIndirectString.restype = ctypes.c_long
+        sh = _shlwapi()
         buf = ctypes.create_unicode_buffer(1024)
         if sh.SHLoadIndirectString(s, buf, 1024, None) == 0 and buf.value.strip():
             return buf.value.strip()

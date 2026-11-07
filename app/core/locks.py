@@ -39,13 +39,15 @@ from __future__ import annotations
 import ctypes
 import ctypes.wintypes as wt
 import os
+import stat as stat_mod
 import time
 from dataclasses import dataclass, field
+
+from . import winutil
 
 __all__ = ["LockProcess", "LockFile", "LockReport", "query", "query_files",
            "APP_TYPES", "RC_TEXT", "BUDGET_S"]
 
-_k32 = ctypes.WinDLL("kernel32", use_last_error=True)
 _rm = ctypes.WinDLL("rstrtmgr", use_last_error=True)
 
 CCH_RM_SESSION_KEY = 32
@@ -92,9 +94,8 @@ _rm.RmGetList.restype = wt.ULONG
 _rm.RmEndSession.argtypes = [wt.DWORD]
 _rm.RmEndSession.restype = wt.ULONG
 
-_k32.OpenProcess.restype = wt.HANDLE
-_k32.QueryFullProcessImageNameW.argtypes = [wt.HANDLE, wt.DWORD,
-                                            ctypes.c_wchar_p, ctypes.POINTER(wt.DWORD)]
+# OpenProcess / QueryFullProcessImageNameW 的声明搬到 winutil（v2.3.0）：
+# 同一个函数本项目有三份实现，句柄类型写错一处就会崩进程。
 
 APP_TYPES = {
     0: "未知程序",
@@ -341,19 +342,7 @@ class LockReport:
 
 def _proc_exe(pid: int) -> str:
     """PID → 可执行文件路径。特权进程拿不到就返回空串。"""
-    if pid <= 0:
-        return ""
-    h = _k32.OpenProcess(0x1000, False, pid)      # PROCESS_QUERY_LIMITED_INFORMATION
-    if not h:
-        return ""
-    try:
-        buf = ctypes.create_unicode_buffer(1024)
-        size = wt.DWORD(1024)
-        if _k32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(size)):
-            return buf.value
-        return ""
-    finally:
-        _k32.CloseHandle(h)
+    return winutil.proc_image_path(pid)
 
 
 def _new_session():
@@ -458,8 +447,17 @@ def query_files(paths: list[str], budget_s: float = BUDGET_S,
     files: dict[str, LockFile] = {}
     existing = []
     for p in paths:
-        lf = LockFile(path=p, exists=os.path.exists(p), is_dir=os.path.isdir(p),
-                      kernel_held=_kernel_held(p) if os.path.exists(p) else "")
+        # 一次 stat 拿齐「在不在 / 是不是目录」。原来写的是
+        # `os.path.exists(p)`、`os.path.isdir(p)`、再一次 `os.path.exists(p)`，
+        # 每个路径 3 次系统调用；一个 490 文件的目录就是 1470 次
+        # —— 在机械盘/网络盘上这是可感知的秒级差别，而三次结果必然一致。
+        try:
+            st = os.stat(p)
+            exists, is_dir = True, stat_mod.S_ISDIR(st.st_mode)
+        except OSError:
+            exists, is_dir = False, False
+        lf = LockFile(path=p, exists=exists, is_dir=is_dir,
+                      kernel_held=_kernel_held(p) if exists else "")
         files[p] = lf
         rep.files.append(lf)
         if lf.exists:
@@ -534,30 +532,41 @@ def _resolve(paths: list[str], out: dict[str, "LockFile"], ctl: "_Ctl",
 MAX_DIR_FILES = 500
 
 
-def expand_target(target: str) -> tuple[list[str], int, str]:
-    """把用户输入展开成待查文件列表。返回 (文件列表, 被截断的数量, 说明)。
+def _classify(target: str) -> tuple[str, str]:
+    """**一次** stat 判断是文件 / 目录 / 不存在。返回 (绝对路径, "file"|"dir"|"none")。
 
-    目录只查**直接子文件**，不递归：这个功能的用途是「这个文件夹删不掉」，
-    递归下去几千个文件也答不出「是哪个占着」。
+    单独拎出来是为了让 `expand_target` 与 `query` 共用这一次 stat ——
+    原来 `query` 在 `expand_target` 之后又 `os.path.isdir` 了一次，同一个
+    路径问了两遍；目录查询还要再对每个子项 `os.path.isfile`（每个一次 stat）。
     """
-    target = (target or "").strip().strip('"')
-    if not target:
-        return [], 0, "请先选择一个文件或目录"
-    target = os.path.abspath(os.path.expandvars(target))
-    if os.path.isfile(target):
-        return [target], 0, ""
-    if not os.path.isdir(target):
-        return [target], 0, ""          # 交给 query_files 报「不存在」
+    t = (target or "").strip().strip('"')
+    if not t:
+        return "", "none"
+    t = os.path.abspath(os.path.expandvars(t))
     try:
-        names = sorted(os.listdir(target))
+        st = os.stat(t)
+    except OSError:
+        return t, "none"
+    return t, ("dir" if stat_mod.S_ISDIR(st.st_mode) else "file")
+
+
+def _expand(target: str, kind: str) -> tuple[list[str], int, str]:
+    if kind != "dir":
+        # 文件与「不存在」都原样交给 query_files：后者对不存在的路径给的是
+        # 「查不到占用」，而不是「没有这个文件」—— 那是另一句结论。
+        return ([target], 0, "") if target else ([], 0, "请先选择一个文件或目录")
+    try:
+        with os.scandir(target) as it:
+            entries = sorted(it, key=lambda e: e.name)
     except OSError as exc:
         return [], 0, "目录读不了：%s" % exc
     files = []
-    for n in names:
-        fp = os.path.join(target, n)
+    for e in entries:
         try:
-            if os.path.isfile(fp):
-                files.append(fp)
+            # scandir 的 is_file() 直接用目录枚举时拿到的类型，不再为每个
+            # 子项单独 stat 一次（500 个文件 = 省 500 次系统调用）
+            if e.is_file():
+                files.append(e.path)
         except OSError:
             continue
     truncated = max(0, len(files) - MAX_DIR_FILES)
@@ -569,11 +578,23 @@ def expand_target(target: str) -> tuple[list[str], int, str]:
     return files[:MAX_DIR_FILES], truncated, note
 
 
+def expand_target(target: str) -> tuple[list[str], int, str]:
+    """把用户输入展开成待查文件列表。返回 (文件列表, 被截断的数量, 说明)。
+
+    目录只查**直接子文件**，不递归：这个功能的用途是「这个文件夹删不掉」，
+    递归下去几千个文件也答不出「是哪个占着」。
+    """
+    abs_target, kind = _classify(target)
+    return _expand(abs_target, kind)
+
+
 def query(target: str, budget_s: float = BUDGET_S,
           stop_flag=None, progress=None) -> LockReport:
     """对外入口：文件或目录都行。"""
     t0 = time.perf_counter()
-    paths, truncated, note = expand_target(target)
+    # 与 expand_target 共用同一次 stat（原来这里又 isdir 了一遍）
+    abs_target, kind = _classify(target)
+    paths, truncated, note = _expand(abs_target, kind)
     if not paths:
         rep = LockReport(target=target, notes=[note] if note else [],
                          budget_s=budget_s)
@@ -585,7 +606,7 @@ def query(target: str, budget_s: float = BUDGET_S,
     rep.skipped = truncated
     if note:
         rep.notes.append(note)
-    if os.path.isdir(os.path.expandvars((target or "").strip().strip('"'))):
+    if kind == "dir":
         rep.notes.append("按目录查只覆盖直接子文件，不递归子目录")
     rep.elapsed_ms = (time.perf_counter() - t0) * 1000
     return rep

@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from . import fmt
+
 MAGIC_MDMP = b"MDMP"
 MAGIC_PAGE = b"PAGE"
 
@@ -93,61 +95,90 @@ def os_build_name(build: int) -> str:
 
 
 class _Buf:
-    """带越界保护的小端读取器。"""
+    """带越界保护的小端读取器。
 
-    def __init__(self, data: bytes):
-        self.d = data
-        self.n = len(data)
+    数据源有两种：整块 `bytes`（测试、小文件），或**按需 seek 的文件对象**。
+
+    后者是为 MEMORY.DMP 准备的：几个 GB 的文件，`mmap` 有可能失败（文件被
+    杀进程占用、放在网络路径、32 位地址空间不够）。原来的兜底是 `f.read()`
+    整个读进内存 —— 那会先吃满物理内存，再抛 `MemoryError`，而用户看到的
+    只是「读不了这个转储」。改成按需读 + 1 MB 块缓存：解析只需要几十个
+    几十字节的字段，真正读进来的量不到 1 MB。
+    """
+
+    #: 按需读模式下一次最多预读多少字节（字段都是相邻的，一块能覆盖一整批）
+    BLOCK = 1 << 20
+
+    def __init__(self, data=None, fh=None, size: int = 0):
+        self.d = data                     # bytes / mmap / None
+        self.f = fh                       # 文件对象（data 为 None 时用）
+        self.n = len(data) if data is not None else int(size)
+        self._b0 = -1
+        self._blk = b""
 
     def has(self, off: int, size: int) -> bool:
         return 0 <= off and off + size <= self.n
 
+    def _read(self, off: int, size: int) -> bytes:
+        """读 `[off, off+size)`。返回的字节数可能小于 size（文件尾部）。"""
+        if self.d is not None:
+            return self.d[off:off + size]
+        if self._b0 >= 0 and self._b0 <= off and off + size <= self._b0 + len(self._blk):
+            return self._blk[off - self._b0:off - self._b0 + size]
+        self.f.seek(off)
+        blk = self.f.read(max(size, self.BLOCK))
+        self._b0, self._blk = off, blk
+        return blk[:size]
+
     def u8(self, off: int, default: int = 0) -> int:
         if not self.has(off, 1):
             return default
-        return self.d[off]
+        b = self._read(off, 1)
+        return b[0] if b else default
 
     def u16(self, off: int, default: int = 0) -> int:
         if not self.has(off, 2):
             return default
-        return struct.unpack_from("<H", self.d, off)[0]
+        return struct.unpack("<H", self._read(off, 2).ljust(2, b"\x00"))[0]
 
     def u32(self, off: int, default: int = 0) -> int:
         if not self.has(off, 4):
             return default
-        return struct.unpack_from("<I", self.d, off)[0]
+        return struct.unpack("<I", self._read(off, 4).ljust(4, b"\x00"))[0]
 
     def u64(self, off: int, default: int = 0) -> int:
         if not self.has(off, 8):
             return default
-        return struct.unpack_from("<Q", self.d, off)[0]
+        return struct.unpack("<Q", self._read(off, 8).ljust(8, b"\x00"))[0]
 
     def raw(self, off: int, size: int) -> bytes:
         if not self.has(off, size):
             return b""
-        return self.d[off:off + size]
+        return self._read(off, size)
 
     def wstr(self, rva: int, max_chars: int = 520) -> str:
         if not self.has(rva, 2):
             return ""
-        end = rva
         limit = min(self.n - 1, rva + max_chars * 2)
-        while end + 1 < limit and not (self.d[end] == 0 and self.d[end + 1] == 0):
+        data = self._read(rva, max(2, limit - rva))
+        end = 0
+        while end + 1 < len(data) and not (data[end] == 0 and data[end + 1] == 0):
             end += 2
         try:
-            return self.d[rva:end].decode("utf-16-le", "replace").strip("\x00 ")
-        except Exception:
+            return data[:end].decode("utf-16-le", "replace").strip("\x00 ")
+        except Exception:                    # noqa: BLE001
             return ""
 
     def astr(self, rva: int, max_chars: int = 520) -> str:
         if not self.has(rva, 1):
             return ""
-        end = self.d.find(b"\x00", rva, min(self.n, rva + max_chars))
+        data = self._read(rva, min(self.n - rva, max_chars))
+        end = data.find(b"\x00")
         if end < 0:
-            end = min(self.n, rva + max_chars)
+            end = len(data)
         try:
-            return self.d[rva:end].decode("utf-8", "replace").strip()
-        except Exception:
+            return data[:end].decode("utf-8", "replace").strip()
+        except Exception:                    # noqa: BLE001
             return ""
 
 
@@ -274,12 +305,7 @@ class DumpReport:
 
     @property
     def size_text(self) -> str:
-        s = float(self.file_size)
-        for unit in ("B", "KB", "MB", "GB"):
-            if s < 1024 or unit == "GB":
-                return f"{s:.1f} {unit}" if unit != "B" else f"{int(s)} B"
-            s /= 1024
-        return f"{s:.1f} GB"
+        return fmt.human_size(self.file_size)
 
     @property
     def created_text(self) -> str:
@@ -357,13 +383,16 @@ def parse(path: str) -> DumpReport:
     if size < 32:
         raise ValueError("文件过小，不是有效的转储文件")
 
-    # 用 mmap 读：MEMORY.DMP 可能有几个 GB，绝不能整个读进内存
+    # 用 mmap 读：MEMORY.DMP 可能有几个 GB，绝不能整个读进内存。
+    # mmap 也可能失败（文件被占用 / 网络路径 / 地址空间不够），此时**不能**
+    # 退回 `f.read()` —— 那是把几 GB 读进内存换一个 MemoryError。
+    # 改成让 _Buf 直接对着文件句柄按需 seek，读进来的量不到 1 MB。
     with open(path, "rb") as f:
         try:
             mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
         except (OSError, ValueError):
             mm = None
-        buf = _Buf(mm if mm is not None else f.read())
+        buf = _Buf(mm) if mm is not None else _Buf(fh=f, size=size)
         try:
             rep = DumpReport(path=path, file_size=size)
             head = buf.raw(0, 8)

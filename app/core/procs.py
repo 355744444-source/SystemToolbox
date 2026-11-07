@@ -28,6 +28,11 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from . import winutil
+
+#: Toolhelp 的进程条目结构现在由 `winutil` 统一持有（`process_name_map` 也用同一份）
+PROCESSENTRY32W = winutil.PROCESSENTRY32W
+
 # ---------------- Win32 常量 ----------------
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 TH32CS_SNAPPROCESS = 0x00000002
@@ -41,19 +46,7 @@ k32.CreateToolhelp32Snapshot.argtypes = [wt.DWORD, wt.DWORD]
 k32.OpenProcess.restype = wt.HANDLE
 k32.OpenProcess.argtypes = [wt.DWORD, wt.BOOL, wt.DWORD]
 k32.CloseHandle.argtypes = [wt.HANDLE]
-k32.QueryFullProcessImageNameW.argtypes = [
-    wt.HANDLE, wt.DWORD, wt.LPWSTR, ctypes.POINTER(wt.DWORD)]
 k32.GetSystemTimes.argtypes = [ctypes.POINTER(wt.FILETIME)] * 3
-
-
-class PROCESSENTRY32W(ctypes.Structure):
-    _fields_ = [("dwSize", wt.DWORD), ("cntUsage", wt.DWORD),
-                ("th32ProcessID", wt.DWORD),
-                ("th32DefaultHeapID", ctypes.POINTER(ctypes.c_ulong)),
-                ("th32ModuleID", wt.DWORD), ("cntThreads", wt.DWORD),
-                ("th32ParentProcessID", wt.DWORD),
-                ("pcPriClassBase", ctypes.c_long), ("dwFlags", wt.DWORD),
-                ("szExeFile", wt.WCHAR * MAX_PATH)]
 
 
 class PROCESS_MEMORY_COUNTERS_EX(ctypes.Structure):
@@ -214,11 +207,10 @@ class ProcSampler:
                             if prev is not None and denom > 0 and total >= prev:
                                 p.cpu = (total - prev) / denom * 100.0
                             p.started = _dt(c)
-                        buf = ctypes.create_unicode_buffer(MAX_PATH * 2)
-                        size = wt.DWORD(len(buf))
-                        if k32.QueryFullProcessImageNameW(h, 0, buf,
-                                                          ctypes.byref(size)):
-                            p.path = buf.value
+                        # 路径查询统一走 winutil（本项目原来有三份实现）；
+                        # 句柄已经打开，直接给它，别再 OpenProcess 一次
+                        p.path = winutil.image_path_from_handle(h)
+                        if p.path:
                             low = p.path.lower()
                             p.system = ("\\windows\\system32\\" in low
                                         or "\\windows\\syswow64\\" in low)
