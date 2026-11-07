@@ -15,7 +15,7 @@ from ..core import cleaner, disk
 from .space_page import DirTreeTab, LargeFileTab, fmt_time
 from .tables import Col, RowModel, make_table, run_bg, stop_all
 from . import notice
-from .widgets import Bar, Dot, ghost_button, primary_button
+from .widgets import PAGE_MARGINS, Bar, Dot, ghost_button, primary_button
 
 
 def _admin_suffix(rule) -> str:
@@ -435,8 +435,8 @@ class DiskTab(QWidget):
         self.btn_chkdsk.clicked.connect(lambda: self._run("chkdsk"))
         act.addWidget(self.btn_chkdsk)
         act.addStretch(1)
-        self.btn_stop = QPushButton("停止")
-        self.btn_stop.setObjectName("DangerBtn")
+        # 停止只是「别再往下做了」，可重来；红色留给删除/修复这类不可逆动作
+        self.btn_stop = ghost_button("停止")
         self.btn_stop.setEnabled(False)
         self.btn_stop.clicked.connect(self._stop)
         act.addWidget(self.btn_stop)
@@ -652,7 +652,7 @@ class CleanPage(QWidget):
 
     def _build(self) -> None:
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(18, 12, 18, 12)
+        lay.setContentsMargins(*PAGE_MARGINS)
         lay.setSpacing(8)
 
         tabs = QTabWidget()

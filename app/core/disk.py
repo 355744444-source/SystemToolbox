@@ -150,7 +150,12 @@ BUS_TYPES = {1: "SCSI", 2: "ATAPI", 3: "ATA", 4: "1394", 6: "光纤", 7: "USB",
 
 def _open_volume(letter: str):
     try:
-        h = ctypes.windll.kernel32.CreateFileW(
+        # 必须显式声明返回类型：不声明时 ctypes 默认按 c_int 处理，
+        # 64 位句柄会被截断成 32 位 —— 句柄号小的机器上一切正常，
+        # 句柄号大的机器上 DeviceIoControl 一律失败（本项目在 usbperf /
+        # sign 里都踩过，这里漏了）。
+        k32 = _k32()
+        h = k32.CreateFileW(
             ctypes.c_wchar_p(f"\\\\.\\{letter}"),
             _GENERIC_READ, _FILE_SHARE_READ | _FILE_SHARE_WRITE,
             None, _OPEN_EXISTING, 0, None)
@@ -163,9 +168,34 @@ def _open_volume(letter: str):
 
 def _devioctl(h, code: int, in_buf, out_buf, out_size: int) -> bool:
     returned = wintypes.DWORD(0)
-    return bool(ctypes.windll.kernel32.DeviceIoControl(
+    return bool(_k32().DeviceIoControl(
         h, code, in_buf, ctypes.sizeof(in_buf),
         out_buf, out_size, ctypes.byref(returned), None))
+
+
+def _k32():
+    """取配置过 argtypes 的 kernel32（模块级只建一次）。"""
+    global _K32
+    if _K32 is None:
+        dll = ctypes.WinDLL("kernel32", use_last_error=True)
+        dll.CreateFileW.restype = wintypes.HANDLE
+        dll.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD,
+                                    wintypes.DWORD, ctypes.c_void_p,
+                                    wintypes.DWORD, wintypes.DWORD,
+                                    wintypes.HANDLE]
+        dll.DeviceIoControl.restype = wintypes.BOOL
+        dll.DeviceIoControl.argtypes = [wintypes.HANDLE, wintypes.DWORD,
+                                        ctypes.c_void_p, wintypes.DWORD,
+                                        ctypes.c_void_p, wintypes.DWORD,
+                                        ctypes.POINTER(wintypes.DWORD),
+                                        ctypes.c_void_p]
+        dll.CloseHandle.argtypes = [wintypes.HANDLE]
+        dll.CloseHandle.restype = wintypes.BOOL
+        _K32 = dll
+    return _K32
+
+
+_K32 = None
 
 
 def _seek_penalty_is_ssd(letter: str) -> bool | None:

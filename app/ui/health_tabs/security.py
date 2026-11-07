@@ -22,7 +22,7 @@ class SecurityTabMixin:
         l.setSpacing(6)
         row = QHBoxLayout()
         row.setSpacing(8)
-        self.sec_headline = QLabel("尚未检查")
+        self.sec_headline = QLabel("尚未运行")
         self.sec_headline.setObjectName("H3")
         self.sec_headline.setWordWrap(True)
         row.addWidget(self.sec_headline, 1)

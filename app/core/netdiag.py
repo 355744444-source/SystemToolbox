@@ -317,19 +317,27 @@ def adapters() -> list[Adapter]:
         a = Adapter(name=conn or guid[:8], desc=desc or conn,
                     ip=ip, mask=mask, gateway=gw, dns=dns, dhcp=dhcp)
         a.is_virtual = _looks_virtual(f"{desc} {conn}")
-        # 用描述把 GetIfTable 的速率/介质/状态对上去
+        # 用描述把 GetIfTable 的速率/介质/状态对上去。
+        # 先精确相等，再退回「包含」，而且包含只认**唯一命中**：
+        # 「以太网」是「以太网 2」的子串，不加这条就会把另一块网卡的
+        # 速率/介质/连接状态套到当前这块上 —— 界面会出现「在用的网卡显示已断开」。
+        # 宁可不填（下面会落成「未知」），也不要填错。
         for key in (desc, conn):
             if not key:
                 continue
             k = key.lower()
-            for row in ifrows:
-                rd = (row["desc"] or "").lower()
-                if rd and (rd == k or rd in k or k in rd):
-                    a.speed = row["speed"]
-                    a.medium = IF_TYPE.get(row["type"], f"类型 {row['type']}")
-                    a.up = row["up"]
-                    break
-            if a.speed:
+            exact = [r for r in ifrows if (r["desc"] or "").lower() == k]
+            cand = exact
+            if not cand:
+                loose = [r for r in ifrows
+                         if (r["desc"] or "").lower()
+                         and k in (r["desc"] or "").lower()]
+                cand = loose if len(loose) == 1 else []
+            if cand:
+                row = cand[0]
+                a.speed = row["speed"]
+                a.medium = IF_TYPE.get(row["type"], f"类型 {row['type']}")
+                a.up = row["up"]
                 break
         if not a.medium:
             a.medium = "环回" if ip.startswith("127.") else "未知"

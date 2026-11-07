@@ -42,7 +42,7 @@ class PerfTabMixin:
             cap = QLabel(text)
             cap.setProperty("role", "faint")
             val = QLabel("—")
-            val.setObjectName("H2")
+            val.setProperty("role", "bigNum")
             box.addWidget(cap)
             box.addWidget(val)
             row.addLayout(box)

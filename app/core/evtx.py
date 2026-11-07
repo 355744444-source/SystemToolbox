@@ -203,14 +203,22 @@ def parse_event_xml(xml: str, channel_hint: str = "") -> Optional[Event]:
                 level = int((node.text or "4").strip())
             except ValueError:
                 level = 4
-        elif tag == "Task":
-            task = int((node.text or "0") or 0)
-        elif tag == "Opcode":
-            opcode = int((node.text or "0") or 0)
+        elif tag in ("Task", "Opcode", "EventRecordID"):
+            # 这三个字段一直是裸 int()：`<Task>  </Task>`（只有空白）时
+            # `or 0` 不生效，int("  ") 抛 ValueError，一条脏事件就能让整次
+            # 读取崩掉 —— 而「读别人拷回来的现场 evtx」正是本工具的主场景。
+            try:
+                value = int((node.text or "0").strip() or 0)
+            except (TypeError, ValueError):
+                value = 0
+            if tag == "Task":
+                task = value
+            elif tag == "Opcode":
+                opcode = value
+            else:
+                rec_id = value
         elif tag == "TimeCreated":
             when = _parse_time(node.get("SystemTime"))
-        elif tag == "EventRecordID":
-            rec_id = int((node.text or "0") or 0)
         elif tag == "Computer":
             computer = (node.text or "").strip()
         elif tag == "Channel":
@@ -421,6 +429,12 @@ def query_events(path: str,
                     progress(len(events))
                 if len(events) >= limit:
                     stats.truncated = True
+                    # 这一批是一次性取出来的（最多 32 个句柄），提前跳出时
+                    # 后面那些句柄没人接管 —— 释放 EvtQuery 的结果集句柄
+                    # **不会**连带关掉它们。不补这一段，每次 limit 截断就漏
+                    # 最多 31 个内核句柄，反复读大日志会一路涨。
+                    for j in range(i + 1, returned.value):
+                        _wevt.EvtClose(handles[j])
                     break
             if stats.truncated:
                 break

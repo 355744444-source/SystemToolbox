@@ -19,9 +19,9 @@ from ..core import analysis as ana
 from ..core import bugchecks, debugger, knowledge as kb, minidump, report
 from . import notice
 from .tables import Col, RowModel, attach_table_menu, make_table, run_bg
-from .widgets import (Badge, EmptyState, FindingCard, KpiCard, ScrollColumn,
-                      DropZone, ghost_button, mono_font, plain_button,
-                      primary_button, ui_font)
+from .widgets import (PAGE_MARGINS, Badge, EmptyState, FindingCard, KpiCard,
+                      ScrollColumn, DropZone, ghost_button, mono_font,
+                      plain_button, primary_button, ui_font)
 
 
 class CdbWorker(QThread):
@@ -108,8 +108,17 @@ class DumpPage(QWidget):
     # ---------------- UI
     def _build(self) -> None:
         root = QVBoxLayout(self)
-        root.setContentsMargins(18, 14, 18, 14)
+        root.setContentsMargins(*PAGE_MARGINS)
         root.setSpacing(12)
+
+        # 页头：与其余工作台对齐（原来这一页从拖放区直接开始，没有页名）
+        top = QHBoxLayout()
+        top.setSpacing(8)
+        title = QLabel("蓝屏转储")
+        title.setProperty("role", "H2")
+        top.addWidget(title)
+        top.addStretch(1)
+        root.addLayout(top)
 
         self.drop = DropZone("把崩溃转储拖到这里",
                              "支持 .dmp / .mdmp：用户模式 MDMP 与内核转储（含 MEMORY.DMP）",

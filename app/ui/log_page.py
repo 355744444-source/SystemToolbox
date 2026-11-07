@@ -23,9 +23,9 @@ from ..core import evtx, knowledge as kb
 from ..core import report
 from . import notice
 from .tables import attach_table_menu
-from .widgets import (EmptyState, FindingCard, KpiCard, ScrollColumn,
-                      bare_button, chip, ghost_button, mono_font,
-                      plain_button, primary_button, ui_font)
+from .widgets import (PAGE_MARGINS, EmptyState, FindingCard, KpiCard,
+                      ScrollColumn, bare_button, chip, ghost_button,
+                      mono_font, plain_button, primary_button, ui_font)
 
 TIME_RANGES = [
     ("最近 1 小时", timedelta(hours=1)),
@@ -197,8 +197,20 @@ class LogPage(QWidget):
     # ---------------- UI
     def _build(self) -> None:
         root = QVBoxLayout(self)
-        root.setContentsMargins(18, 14, 18, 14)
+        root.setContentsMargins(*PAGE_MARGINS)
         root.setSpacing(12)
+
+        # 页头：其余八个工作台都有「页名」这一行，只有日志和蓝屏没有 ——
+        # 切到这两页时页头整行消失，看起来像没加载完。这里只补页名，
+        # 一句话说明交给全局页头右侧的 hint（同一个意思不写两遍）。
+        top = QHBoxLayout()
+        top.setSpacing(8)
+        title = QLabel("日志分析")
+        title.setProperty("role", "H2")
+        top.addWidget(title)
+        top.addStretch(1)
+        root.addLayout(top)
+
         root.addWidget(self._build_source_card())
         root.addLayout(self._build_kpi_row())
 
@@ -343,7 +355,7 @@ class LogPage(QWidget):
     def _build_kpi_row(self) -> QHBoxLayout:
         row = QHBoxLayout()
         row.setSpacing(10)
-        self.kpi_total = KpiCard("事件总数", "-", "尚未读取", "info")
+        self.kpi_total = KpiCard("事件总数", "-", "尚未运行", "info")
         self.kpi_crit = KpiCard("严重", "-", "", "crit")
         self.kpi_err = KpiCard("错误", "-", "", "error")
         self.kpi_warn = KpiCard("警告", "-", "", "warn")
@@ -540,10 +552,14 @@ class LogPage(QWidget):
         self.kpi_crash.set_value(f"{crashes}", "次 BugCheck 记录" if crashes else "无蓝屏记录")
         color = "ok" if a.health >= 85 else ("warn" if a.health >= 60 else "error")
         self.kpi_health.set_value(f"{a.health}", f"{len(a.findings)} 项诊断发现", color)
+        # 三个分支都要有：原来缺 else，先扫出 40 分再扫出 95 分时，
+        # 数字变绿、圆点还留着上一次的红色
         if a.health < 60:
             self.kpi_health.set_accent("error")
         elif a.health < 85:
             self.kpi_health.set_accent("warn")
+        else:
+            self.kpi_health.set_accent("ok")
 
     def _show_findings(self) -> None:
         self.findings_col.clear()

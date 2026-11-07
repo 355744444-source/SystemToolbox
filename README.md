@@ -57,6 +57,15 @@ KPI 的数字是 22 px、单位降到 13 px 且用次要色 —— 两个都 22 
 卡片不用投影，用「上边亮一档、下边暗一档」的 1 px 边缘做浮起感：
 8 张卡片的页面挂真投影，一次重绘要从 2.9 ms 涨到 15.9 ms，不值。
 
+页面骨架只有一份出处：九个工作台的根布局都取 `PAGE_MARGINS`（18 / 14 / 18 / 14），
+页名一律 13 px / 600 字重 —— QSS 同时认 `#H2` 与 `[role="H2"]` 两种写法
+（v2.1.1 之前只写了前者，13 处标题悄悄回落成 12 px 常规字重）；
+「结论条」也只有 `VerdictBar` 一份，开机诊断与系统体检共用，不再各写一遍。
+这些都由 `tools/probe_audit.py` 实测校验，不靠肉眼比对。
+
+只读取证工具最不能出的结论是「读不到 → 没问题」。所以事件日志没读完时结论会写
+「只读到 N 条，以下只覆盖已读部分」，计算机级 PATH 读不出来时报「读不到」而不是给绿色通过。
+
 偏好只写一个文件：`%LOCALAPPDATA%\SystemToolbox\ui.json`（只存窗口位置）。
 不碰注册表 —— 这个工具是便携型 exe，用户期望拷走就干净。
 读失败一律当「没设置过」，绝不因为偏好文件坏了打不开。
@@ -207,7 +216,7 @@ CrashLogSuite/
 │     ├─ health_page.py     系统体检（设备驱动 · 升级条件 · 性能曲线+进程 TOP · 安全基线 · 系统文件 · 磁盘 SMART · 硬件错误 · 崩溃转储 · 环境变量 · 驱动体检）
 │     ├─ notice.py          页内提示与页内确认（替代 QMessageBox，运行时零弹窗）
 │     ├─ tables.py          通用勾选表格模型 + 可停止后台线程 + 复制/导出 CSV
-│     └─ widgets.py         图标、KPI 卡、徽标、诊断卡、拖放区、容量条
+│     └─ widgets.py         图标、KPI 卡、徽标、诊断卡、拖放区、容量条、空态、结论条（VerdictBar）、页边距常量（PAGE_MARGINS）
 ├─ tests/
 │  ├─ test_core.py          30 项单元测试（日志/转储/报告/XML 美化）
 │  ├─ test_clean.py         25 项单元测试（规则安全性/扫描/删除/磁盘/注册表）
@@ -231,6 +240,7 @@ CrashLogSuite/
 │  ├─ test_tables_v2.py     34 项单元测试（排序键数值/单位/版本/空值 · 勾选按对象身份 · 筛选与排序共存 · 表头挂载）
 │  ├─ test_version_v2.py     9 项单元测试（版本号唯一出处 · exe 版本资源读取）
 │  ├─ test_v210.py          62 项单元测试（八段口径 / 相对基线 / 单次慢项不判严重 / 无管理员口径 / 关机器睡眠）
+│  ├─ test_v211.py          19 项单元测试（32 位计数器回绕 / 脏 XML 数值容错 / 截断不报「干净」/ PATH 读不到 / 结论条 / 九页边距与两种标题写法同字号）
 │  ├─ boot_fixtures.py      开机事件 XML 构造器（真机字段顺序 + 15/5 字段双模板）
 │  ├─ test_ui_smoke.py      13 项界面冒烟（全部工作台离屏建页 / 单皮肤断言 / 结论条初始隐藏）
 │  ├─ gen_fixtures.py       合成转储生成器（x64/x86 内核 + 用户模式）
@@ -259,6 +269,7 @@ CrashLogSuite/
 │  ├─ probe_visual.py       视觉层实测（数字是否等宽 / 阴影开销 / 字距影响）
 │  ├─ probe_usb_result.py   回放真实测速记录重拍 U 盘结果页（盘不在手边时用）
 │  ├─ probe_boot.py         第九工作台探针（构造样本 → 堆叠图 / 八行阶段表 / 溢出检查 / 四张截图）
+│  ├─ probe_audit.py        界面一致性审计（实测标题字号 objectName vs role / 九页边距与首控件 x / KPI 卡宽 / 字号越界清单）
 │  └─ gen_docs.py           生成 docs/ 界面截图
 ├─ samples/                 样例报告（真实日志 + 合成转储）
 ├─ docs/                    界面截图
@@ -268,7 +279,7 @@ CrashLogSuite/
 ## 开发
 
 ```bat
-:: 测试（759 项）
+:: 测试（778 项）
 python -m unittest discover -s tests -v
 
 :: 离屏 UI 冒烟并出截图
@@ -286,6 +297,9 @@ python tools/probe_health.py && python tools/probe_health_ui.py
 
 :: 开机诊断（构造样本，不需要管理员）
 python tools/probe_boot.py
+
+:: 界面一致性审计（九页边距实测 / objectName 与 role 两种标题写法同字号 / KPI 卡宽）
+python tools/probe_audit.py
 
 :: 进程采样 / 组件健康
 python tools/probe_v160.py && python tools/probe_v160b.py

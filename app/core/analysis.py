@@ -175,6 +175,11 @@ def analyze(events: list[Event], stats: Optional[ReadStats] = None) -> LogAnalys
 
 
 def _headline(res: LogAnalysis) -> str:
+    # 「没发现问题」这句话只有读全了才敢说。读到一半中断（错误/取消/被 limit
+    # 截断）时，页面上原来照样显示「日志干净」—— 这是只读取证工具最不能出的
+    # 结论：用户会拿它当「这台机器没问题」的证据。
+    incomplete = bool(res.truncated or any("失败" in n or "取消" in n
+                                          for n in res.notes))
     if not res.total:
         return "没有读取到任何事件"
     crit = [f for f in res.findings if f.severity == "临界"]
@@ -189,6 +194,9 @@ def _headline(res: LogAnalysis) -> str:
         return f"{top.title}{extra}"
     if res.findings:
         return f"未发现崩溃或硬件错误，仅有 {len(res.findings)} 项提示：" + res.findings[0].title
+    if incomplete:
+        return ("只读到 %d 条事件（未读完）：以下结论只覆盖已读部分，"
+                "不能当作「这台机器没问题」" % res.total)
     return "日志干净：窗口内没有崩溃、掉电、磁盘或硬件错误事件"
 
 

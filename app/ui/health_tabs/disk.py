@@ -23,7 +23,7 @@ class DiskTabMixin:
         l.setSpacing(6)
         row = QHBoxLayout()
         row.setSpacing(8)
-        self.disk_headline = QLabel("尚未检查")
+        self.disk_headline = QLabel("尚未运行")
         self.disk_headline.setObjectName("H3")
         self.disk_headline.setWordWrap(True)
         row.addWidget(self.disk_headline, 1)
@@ -33,7 +33,7 @@ class DiskTabMixin:
         l.addLayout(row)
         hint = QLabel("数据来自 Storport 存储健康事件里的 NVMe 健康日志原页"
                       "（寿命、可用备用、累计读写、通电时长、介质错误）。"
-                      "健康日志是**开机约 11 分钟时**写的一条快照，不是此刻温度；"
+                      "健康日志是<b>开机约 11 分钟时</b>写的一条快照，不是此刻温度；"
                       "寿命与写入量这类慢变量不受影响。")
         hint.setProperty("role", "faint")
         hint.setWordWrap(True)

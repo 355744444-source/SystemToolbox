@@ -141,9 +141,15 @@ QToolButton#RailBtn:checked {{
 }}
 
 /* ---------- 顶部标题 ---------- */
-QLabel#H1 {{ font-size: 15px; font-weight: 600; letter-spacing: 0.2px; }}
-QLabel#H2 {{ font-size: 13px; font-weight: 600; }}
-QLabel#H3 {{ font-size: 12px; font-weight: 600; padding-top: 2px; }}
+/* objectName 与 role 两种写法都认。
+   历史原因：一半页面写 `setObjectName("H2")`、另一半写 `setProperty("role","H2")`，
+   而 QSS 原来只写了 `#H2` —— 后一半的标题实际回落成 `*{{font-size:12px}}` 常规字重
+   （实测 pixelSize 12 / weight 50，与 #H2 的 13 / 75 差两档）。于是同样叫「标题」
+   的东西，在日志页是加粗 13px、在开机页是常规 12px。
+   两条选择器并存，谁写的都生效，不用把 9 个页面逐个改一遍。 */
+QLabel#H1, QLabel[role="H1"] {{ font-size: 15px; font-weight: 600; letter-spacing: 0.2px; }}
+QLabel#H2, QLabel[role="H2"] {{ font-size: 13px; font-weight: 600; }}
+QLabel#H3, QLabel[role="H3"] {{ font-size: 12px; font-weight: 600; padding-top: 2px; }}
 QLabel[role="dim"] {{ color: {t['dim']}; }}
 QLabel[role="faint"] {{ color: {t['faint']}; font-size: 11px; }}
 QLabel[role="mono"] {{ font-family: {FONT_UI}; }}
@@ -153,6 +159,10 @@ QLabel[role="kpi"] {{
     font-weight: 700;
 }}
 QLabel[role="kpiLabel"] {{ color: {t['dim']}; font-size: 11px; }}
+/* 数字档的第二级：实时采样值（CPU/内存/磁盘/网络）用。
+   原来这类值借用 H2（13px），跟 22px 的 KPI 差两级，一屏里出现三种「数值」
+   字号；18px 是「比标题大、比 KPI 小」的中间档。 */
+QLabel[role="bigNum"] {{ font-size: 18px; font-weight: 600; }}
 
 /* ---------- 卡片 ---------- */
 /* 卡片用「上边亮一档、下边暗一档」的 1px 边缘代替投影：

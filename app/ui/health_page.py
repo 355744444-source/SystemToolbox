@@ -17,7 +17,7 @@ import time
 from datetime import datetime
 
 from PyQt5.QtCore import QTimer, pyqtSignal
-from PyQt5.QtWidgets import (QFileDialog, QFrame, QHBoxLayout, QLabel, QTabWidget,
+from PyQt5.QtWidgets import (QFileDialog, QHBoxLayout, QLabel, QTabWidget,
                              QVBoxLayout, QWidget)
 
 from ..core import devices as dv
@@ -33,10 +33,10 @@ from ..core import upgrade as up
 from ..core import component
 from ..core import health
 from ..core import report
-from .. import theme
 from . import notice
 from .tables import stop_all
-from .widgets import KpiCard, ghost_button, primary_button
+from .widgets import (PAGE_MARGINS, KpiCard, VerdictBar, ghost_button,
+                      primary_button)
 from .health_tabs.common import MAX_POINTS
 from .health_tabs import (DevTabMixin, UpgradeTabMixin, PerfTabMixin,
                           SecurityTabMixin, ComponentTabMixin, DiskTabMixin,
@@ -98,7 +98,7 @@ class HealthPage(DevTabMixin, UpgradeTabMixin, PerfTabMixin,
 
     def _build(self) -> None:
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 10, 16, 10)
+        lay.setContentsMargins(*PAGE_MARGINS)
         lay.setSpacing(9)
 
         top = QHBoxLayout()
@@ -106,9 +106,7 @@ class HealthPage(DevTabMixin, UpgradeTabMixin, PerfTabMixin,
         title = QLabel("系统体检")
         title.setObjectName("H2")
         top.addWidget(title)
-        self.sub_label = QLabel("设备驱动 · 升级条件 · 实时占用 · 安全基线 · 系统文件 · "
-                                "磁盘 SMART · 硬件错误 · 崩溃转储 · 环境变量 · 驱动体检"
-                                "（全部只读，不改任何设置）")
+        self.sub_label = QLabel("一键跑完九项，给出整机结论；结论可导出成交接报告")
         self.sub_label.setProperty("role", "faint")
         top.addWidget(self.sub_label)
         top.addStretch(1)
@@ -119,45 +117,28 @@ class HealthPage(DevTabMixin, UpgradeTabMixin, PerfTabMixin,
 
         kpis = QHBoxLayout()
         kpis.setSpacing(8)
-        self.kpi_dev = KpiCard("设备与驱动", "-", "尚未检查")
-        self.kpi_up = KpiCard("升级体检", "-", "尚未检查")
-        self.kpi_disk = KpiCard("磁盘健康", "-", "尚未检查")
-        self.kpi_hw = KpiCard("硬件错误", "-", "尚未检查")
-        self.kpi_sec = KpiCard("安全基线", "-", "尚未检查")
-        self.kpi_file = KpiCard("系统文件", "-", "尚未检查")
+        self.kpi_dev = KpiCard("设备与驱动", "-", "尚未运行")
+        self.kpi_up = KpiCard("升级体检", "-", "尚未运行")
+        self.kpi_disk = KpiCard("磁盘健康", "-", "尚未运行")
+        self.kpi_hw = KpiCard("硬件错误", "-", "尚未运行")
+        self.kpi_sec = KpiCard("安全基线", "-", "尚未运行")
+        self.kpi_file = KpiCard("系统文件", "-", "尚未运行")
         self.kpi_live = KpiCard("实时占用", "-", "启动中")
-        self.kpi_dc = KpiCard("崩溃转储", "-", "尚未检查")
+        self.kpi_dc = KpiCard("崩溃转储", "-", "尚未运行")
         for k in (self.kpi_dev, self.kpi_up, self.kpi_disk, self.kpi_hw,
                   self.kpi_sec, self.kpi_file, self.kpi_live, self.kpi_dc):
             kpis.addWidget(k, 1)
         lay.addLayout(kpis)
 
         # 整机结论条：九项全部跑完才出现，出现就代表「这份结论可以导出了」
-        self.verdict = QFrame()
-        self.verdict.setProperty("role", "card")
-        self.verdict.setVisible(False)
-        vb = QHBoxLayout(self.verdict)
-        vb.setContentsMargins(14, 9, 14, 9)
-        vb.setSpacing(14)
-        self.v_score = QLabel("—")
-        self.v_score.setObjectName("H1")
-        self.v_score.setMinimumWidth(34)
-        vb.addWidget(self.v_score)
-        vtxt = QVBoxLayout()
-        vtxt.setSpacing(1)
-        self.v_head = QLabel("")
-        self.v_head.setObjectName("H3")
-        self.v_head.setWordWrap(True)
-        self.v_sub = QLabel("")
-        self.v_sub.setProperty("role", "faint")
-        self.v_sub.setWordWrap(True)
-        vtxt.addWidget(self.v_head)
-        vtxt.addWidget(self.v_sub)
-        vb.addLayout(vtxt, 1)
+        self.verdict = VerdictBar(level_width=34)
+        self.v_score = self.verdict.level
+        self.v_head = self.verdict.head
+        self.v_sub = self.verdict.sub
         self.btn_report = ghost_button("导出报告", "export")
         self.btn_report.setToolTip("把这次体检的结论导出为单文件 HTML 或 Excel")
         self.btn_report.clicked.connect(self._export_report)
-        vb.addWidget(self.btn_report)
+        self.verdict.add_action(self.btn_report)
         lay.addWidget(self.verdict)
 
         self.tabs = QTabWidget()
@@ -271,11 +252,7 @@ class HealthPage(DevTabMixin, UpgradeTabMixin, PerfTabMixin,
                          % (self.health_rep.headline, self.health_rep.score))
 
     def _show_verdict(self, rep, cost_ms: int) -> None:
-        t = theme.current()
-        # 内联上色必须显式声明透明底，否则 QLabel 会自带一层底色（KpiCard 同理）
-        self.v_score.setStyleSheet(
-            "color:%s; background:transparent;" % t.get(rep.level, t["text"]))
-        self.v_score.setText(str(rep.score))
+        self.verdict.set_level(str(rep.score), rep.level)
         self.v_head.setText(f"健康评分 {rep.score} · {rep.headline}")
         self.v_sub.setText(
             "检查 %d 项 · 严重 %d 项 · 注意 %d 项 · 并行耗时 %.1f 秒"

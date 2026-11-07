@@ -15,13 +15,13 @@ from __future__ import annotations
 
 from PyQt5.QtCore import QPoint, QPointF, QRectF, Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QColor, QPainter, QPen
-from PyQt5.QtWidgets import (QFrame, QHBoxLayout, QLabel, QSplitter,
-                             QTabWidget, QToolTip, QVBoxLayout, QWidget)
+from PyQt5.QtWidgets import (QHBoxLayout, QLabel, QSplitter, QTabWidget,
+                             QToolTip, QVBoxLayout, QWidget)
 
 from .. import theme
 from ..core import boot
 from .tables import Col, RowModel, TablePane, run_bg, stop_all
-from .widgets import KpiCard, ghost_button
+from .widgets import PAGE_MARGINS, KpiCard, VerdictBar, ghost_button
 
 # 堆叠柱每一段的颜色。顺序与 boot.PHASES 一致，末尾两段是残差与登录后后台。
 SEGMENT_TOKENS = {
@@ -186,7 +186,7 @@ class BootPage(QWidget):
     # ------------------------------------------------------------------ 构建
     def _build(self) -> None:
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(0, 12, 0, 0)
+        lay.setContentsMargins(*PAGE_MARGINS)
         lay.setSpacing(9)
 
         top = QHBoxLayout()
@@ -211,32 +211,18 @@ class BootPage(QWidget):
         self.k_base = KpiCard("本机基线", "-", "最近若干次的中位数", "dim")
         self.k_main = KpiCard("进系统前", "-", "Windows 徽标 → 桌面", "warn")
         self.k_post = KpiCard("桌面出来后", "-", "启动项还在忙", "info")
-        self.k_slow = KpiCard("被点名的慢项", "-", "重复出现的排前面", "ok")
+        # 圆点颜色跟「有没有慢项」走（见 _done）：固定绿色会让「4 个慢项」
+        # 这张卡看起来是好事，与同一屏结论条里的红色判断自相矛盾。
+        self.k_slow = KpiCard("被点名的慢项", "-", "重复出现的排前面", "dim")
         for k in (self.k_last, self.k_base, self.k_main, self.k_post, self.k_slow):
             kpi.addWidget(k, 1)
         lay.addLayout(kpi)
 
         # 结论条：有记录就出现，讲一句「这次比平时快还是慢、慢在哪」
-        self.verdict = QFrame()
-        self.verdict.setProperty("role", "card")
-        vb = QHBoxLayout(self.verdict)
-        vb.setContentsMargins(14, 9, 14, 9)
-        vb.setSpacing(14)
-        self.v_level = QLabel("—")
-        self.v_level.setObjectName("H1")
-        self.v_level.setMinimumWidth(52)
-        vb.addWidget(self.v_level)
-        vtxt = QVBoxLayout()
-        vtxt.setSpacing(1)
-        self.v_head = QLabel("")
-        self.v_head.setObjectName("H3")
-        self.v_head.setWordWrap(True)
-        self.v_sub = QLabel("")
-        self.v_sub.setProperty("role", "faint")
-        self.v_sub.setWordWrap(True)
-        vtxt.addWidget(self.v_head)
-        vtxt.addWidget(self.v_sub)
-        vb.addLayout(vtxt, 1)
+        self.verdict = VerdictBar(level_width=52)
+        self.v_level = self.verdict.level
+        self.v_head = self.verdict.head
+        self.v_sub = self.verdict.sub
         lay.addWidget(self.verdict)
 
         self.tabs = QTabWidget()
@@ -293,14 +279,16 @@ class BootPage(QWidget):
                 color_fn=lambda r: r[5]),
             Col("这一段在做什么", 0, lambda r: r[4], color="faint", stretch=True),
         ], parent=self)
-        # 行高 24；最小高给 200（740 高的最小窗口下露 6 行），
-        # 常规 900 高时由分栏分到 8 行全显示
-        self.table_phase = TablePane(self.model_phase, row_height=24,
+        # 行高 22；最小高 192 = 表头 + 筛选行 + 6 行（740 最小窗口的下限）。
+        # 常规高窗口由分栏分到 8 行；原来 row_height 24 + 最小高 200 时，
+        # 900 高的窗口正好卡在「第 8 行露一半」的位置，截图看着像被裁了。
+        self.table_phase = TablePane(self.model_phase, row_height=22,
                                      placeholder="筛选阶段…")
-        self.table_phase.setMinimumHeight(200)
+        self.table_phase.setMinimumHeight(192)
         tw.addWidget(self.table_phase, 1)
         split.addWidget(table_wrap)
-        split.setSizes([150, 300])
+        # 图的初始高度收一点：149px 的柱状图信息量已经够，多出来的都该给表
+        split.setSizes([130, 330])
         lay.addWidget(split, 1)
 
         # 建议动作跟在图下面而不是单独开一页：三条动作是这一页的结论，
@@ -388,6 +376,27 @@ class BootPage(QWidget):
             self._started = True
             self._boot.start(80)
 
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self._fit_advice()
+
+    def _fit_advice(self) -> None:
+        """按当前宽度算一次换行后的真实高度，钉成最小高。
+
+        `QLabel` 开了 wordWrap 之后 `minimumSizeHint()` 只报**一行**高，
+        于是窗口压到最小时，布局会把「建议动作」这块挤成一行 —— 三条建议
+        只剩第一条的一半，看起来像排版坏了。高度对宽度是有函数的，
+        这里直接问 Qt 要。
+        """
+        if not self.advice.text():
+            return
+        w = self.advice.width() or (self.width() - 40)
+        if w <= 0:
+            return
+        h = self.advice.heightForWidth(w)
+        if h > 0:
+            self.advice.setMinimumHeight(h + 2)
+
     def shutdown(self) -> None:
         self._boot.stop()
         stop_all(self)
@@ -443,6 +452,7 @@ class BootPage(QWidget):
             self.v_level.setText("—")
             self.v_head.setText(rep.error or "还没有开机记录")
             self.v_sub.setText("重启一次机器，再点右上角「重新读取」")
+            self._fit_advice()
             return
 
         self.k_last.set_value(last.boot_text, last.time_text)
@@ -463,9 +473,13 @@ class BootPage(QWidget):
         self.k_post.set_value(
             last.post_text, "启动项 %d 个" % last.apps,
             _token("warn") if last.post_ms >= boot.POSTBOOT_LIMIT_MS else None)
+        repeats = sum(1 for s in rep.slow if s.count >= 2)
         self.k_slow.set_value(str(len(rep.slow)),
-                              "其中 %d 个重复出现" % sum(1 for s in rep.slow
-                                                   if s.count >= 2))
+                              "其中 %d 个重复出现" % repeats)
+        # 圆点是给「一眼判断」用的：0 个绿、出现重复黄、一堆或整机很慢红
+        self.k_slow.set_accent("ok" if not rep.slow else
+                               "crit" if (len(rep.slow) >= 3 or repeats >= 2)
+                               else "warn")
 
         self.chart.empty_text = "还没有开机记录"
         self.chart.set_data(rep.records, base)
@@ -481,8 +495,7 @@ class BootPage(QWidget):
         level_cn = {"crit": "很慢", "warn": "偏慢", "ok": "正常", "none": "—"}
         color = {"crit": _token("crit"), "warn": _token("warn"),
                  "ok": _token("ok")}.get(rep.level, _token("dim"))
-        self.v_level.setText(level_cn.get(rep.level, "—"))
-        self.v_level.setStyleSheet("color:%s;" % color)
+        self.verdict.set_level(level_cn.get(rep.level, "—"), color)
         self.v_head.setText(rep.headline)
         if last.post_ms >= boot.POSTBOOT_LIMIT_MS and last.post_ms > last.main_ms:
             sub = ("桌面已经出来，但这之后又忙了 %s —— 这一段几乎全是启动项在"
@@ -512,3 +525,4 @@ class BootPage(QWidget):
                 "<span style='color:%s'>这台机器的开机耗时没有明显异常："
                 "各段都在本机基线附近，也没有重复出现的慢项。</span>"
                 % _token("dim"))
+        self._fit_advice()

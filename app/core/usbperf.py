@@ -422,11 +422,14 @@ def _seq_write(path: str, size: int, rep: Report,
                prog, stop) -> None:
     buf = _AlignedBuf(CHUNK)
     buf.fill(0x5A)
-    h = _open(path, write=True, write_through=True, create=True)
     written = wt.DWORD(0)
     done = 0
     t0 = time.perf_counter()
+    # 开文件要放进 try：原来它在外面，`_open` 抛错时下面那个 finally 根本
+    # 轮不到执行，4 MB 的 VirtualAlloc 就白扔了（换盘反复重测会一路累加）。
+    h = None
     try:
+        h = _open(path, write=True, write_through=True, create=True)
         while done < size:
             if stop and stop():
                 return
@@ -438,7 +441,8 @@ def _seq_write(path: str, size: int, rep: Report,
                 prog(done / size * 0.4, f"顺序写入 {done / 2 ** 20:.0f} / "
                                         f"{size / 2 ** 20:.0f} MB")
     finally:
-        _k32.CloseHandle(h)
+        if h:
+            _k32.CloseHandle(h)
         buf.free()
     sec = time.perf_counter() - t0
     rep.sample.write_mbs = (size / 2 ** 20) / sec if sec else 0.0
@@ -447,11 +451,12 @@ def _seq_write(path: str, size: int, rep: Report,
 def _seq_read(path: str, size: int, rep: Report,
               prog, stop) -> None:
     buf = _AlignedBuf(CHUNK)
-    h = _open(path, write=False, write_through=False)
     got = wt.DWORD(0)
     done = 0
     t0 = time.perf_counter()
+    h = None
     try:
+        h = _open(path, write=False, write_through=False)
         while done < size:
             if stop and stop():
                 return
@@ -465,7 +470,8 @@ def _seq_read(path: str, size: int, rep: Report,
                 prog(0.4 + done / size * 0.4, f"顺序读取 {done / 2 ** 20:.0f} / "
                                               f"{size / 2 ** 20:.0f} MB")
     finally:
-        _k32.CloseHandle(h)
+        if h:
+            _k32.CloseHandle(h)
         buf.free()
     sec = time.perf_counter() - t0
     rep.sample.read_mbs = (done / 2 ** 20) / sec if sec else 0.0
@@ -474,14 +480,15 @@ def _seq_read(path: str, size: int, rep: Report,
 def _rand_read(path: str, size: int, rep: Report,
                prog, stop) -> None:
     buf = _AlignedBuf(RAND_BLOCK)
-    h = _open(path, write=False, write_through=False)
     got = wt.DWORD(0)
     pos = ctypes.c_longlong(0)
     slots = max(1, size // RAND_BLOCK)
     rnd = random.Random(20261022)
     ok = 0
     t0 = time.perf_counter()
+    h = None
     try:
+        h = _open(path, write=False, write_through=False)
         for i in range(RAND_COUNT):
             if stop and stop():
                 break
@@ -497,7 +504,8 @@ def _rand_read(path: str, size: int, rep: Report,
                 prog(0.8 + i / RAND_COUNT * 0.2,
                      f"4K 随机读 {i} / {RAND_COUNT} 次")
     finally:
-        _k32.CloseHandle(h)
+        if h:
+            _k32.CloseHandle(h)
         buf.free()
     sec = time.perf_counter() - t0
     rep.sample.rand_read_iops = ok / sec if sec else 0.0

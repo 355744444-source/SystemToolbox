@@ -22,7 +22,7 @@ class ComponentTabMixin:
         l.setSpacing(6)
         row = QHBoxLayout()
         row.setSpacing(8)
-        self.file_headline = QLabel("尚未检查")
+        self.file_headline = QLabel("尚未运行")
         self.file_headline.setObjectName("H3")
         self.file_headline.setWordWrap(True)
         row.addWidget(self.file_headline, 1)

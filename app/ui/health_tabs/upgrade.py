@@ -22,7 +22,7 @@ class UpgradeTabMixin:
         l.setSpacing(6)
         row = QHBoxLayout()
         row.setSpacing(8)
-        self.up_headline = QLabel("尚未体检")
+        self.up_headline = QLabel("尚未运行")
         self.up_headline.setObjectName("H3")
         self.up_headline.setWordWrap(True)
         row.addWidget(self.up_headline, 1)

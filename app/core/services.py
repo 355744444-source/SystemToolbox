@@ -28,8 +28,11 @@ SERVICE_QUERY_STATUS = 0x0004
 SERVICE_CHANGE_CONFIG = 0x0002
 SERVICE_STOP = 0x0020
 SERVICE_CONTROL_STOP = 0x00000001
+SERVICE_STOPPED = 0x00000001
+SERVICE_STOP_PENDING = 0x00000003
 SERVICE_RUNNING = 0x00000004
 ERROR_SERVICE_ALREADY_RUNNING = 1056
+ERROR_SERVICE_NOT_ACTIVE = 1062
 ERROR_DEPENDENT_SERVICES_RUNNING = 1061
 
 START_TYPES = {0: "引导", 1: "系统", 2: "自动", 3: "手动", 4: "禁用"}
@@ -439,7 +442,10 @@ def stop(name: str, timeout: float = 8.0) -> tuple[bool, str]:
         st = _SERVICE_STATUS()
         if not adv.ControlService(h, SERVICE_CONTROL_STOP, ctypes.byref(st)):
             err = ctypes.get_last_error()
-            if err == ERROR_SERVICE_ALREADY_RUNNING:
+            # 1062 = 服务本来就没在跑。这是「已经是要的状态」，不是失败。
+            # 原来只判了 1056（那是**启动**已运行服务时的错误码），于是
+            # 停一个已停的服务会报「停止失败（错误码 1062）」。
+            if err in (ERROR_SERVICE_NOT_ACTIVE, ERROR_SERVICE_ALREADY_RUNNING):
                 return (True, "")
             if err == ERROR_DEPENDENT_SERVICES_RUNNING:
                 return (False, "还有其它服务依赖它，需要先停依赖项")
@@ -448,7 +454,10 @@ def stop(name: str, timeout: float = 8.0) -> tuple[bool, str]:
         while time.time() < deadline:
             st2 = _SERVICE_STATUS()
             if adv.QueryServiceStatus(h, ctypes.byref(st2)):
-                if st2.dwCurrentState != SERVICE_RUNNING:
+                # 只认 SERVICE_STOPPED(1)。用 `!= RUNNING` 会把
+                # STOP_PENDING(3)、PAUSED(7) 都算成已停止 —— 服务还在收尾就
+                # 报成功，紧接着改启动类型会失败（运行中的服务不让禁）。
+                if st2.dwCurrentState == SERVICE_STOPPED:
                     return (True, "")
             time.sleep(0.2)
         return (False, "已发出停止指令，但服务仍未停下")

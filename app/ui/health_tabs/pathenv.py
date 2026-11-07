@@ -24,7 +24,7 @@ class PathEnvTabMixin:
 
         row = QHBoxLayout()
         row.setSpacing(8)
-        self.env_headline = QLabel("尚未检查")
+        self.env_headline = QLabel("尚未运行")
         self.env_headline.setObjectName("H3")
         self.env_headline.setWordWrap(True)
         row.addWidget(self.env_headline, 1)

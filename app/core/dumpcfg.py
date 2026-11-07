@@ -855,7 +855,7 @@ def verdict(findings: list) -> tuple:
     if warn:
         return "warn", "能留下转储，但有一项需要处理：%s" % warn[0].title
     if not findings:
-        return "dim", "尚未体检"
+        return "dim", "尚未运行"
     return "ok", "配置正常，蓝屏时会生成转储"
 
 

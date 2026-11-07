@@ -23,7 +23,7 @@ from .. import theme
 from ..core import netdiag, netspeed
 from .line_chart import LineChart
 from .tables import Col, RowModel, make_table, run_bg, stop_all
-from .widgets import Bar, KpiCard, ghost_button, primary_button
+from .widgets import PAGE_MARGINS, Bar, KpiCard, ghost_button, primary_button
 
 RIGHT = int(Qt.AlignRight | Qt.AlignVCenter)
 SPEED_TAB = 3                     # 第 4 个页签，切过去要给曲线腾地方
@@ -80,7 +80,7 @@ class NetPage(QWidget):
     # ------------------------------------------------------------------ UI
     def _build(self) -> None:
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 10, 16, 10)
+        lay.setContentsMargins(*PAGE_MARGINS)
         lay.setSpacing(9)
 
         top = QHBoxLayout()
@@ -103,7 +103,7 @@ class NetPage(QWidget):
 
         kpis = QHBoxLayout()
         kpis.setSpacing(10)
-        self.kpi_state = KpiCard("诊断结果", "-", "尚未诊断")
+        self.kpi_state = KpiCard("诊断结果", "-", "尚未运行")
         self.kpi_nic = KpiCard("主网卡", "-", "-")
         self.kpi_net = KpiCard("外网延迟", "-", "-")
         self.kpi_dns = KpiCard("DNS 解析", "-", "-")
@@ -256,7 +256,7 @@ class NetPage(QWidget):
 
         kpi = QHBoxLayout()
         kpi.setSpacing(9)
-        self.k_dl = KpiCard("下载", "-", "尚未测速", "accent")
+        self.k_dl = KpiCard("下载", "-", "尚未运行", "accent")
         self.k_ul = KpiCard("上传", "-", "", "ok")
         self.k_lat = KpiCard("网络延迟", "-", "TCP 握手 8 次取均", "dim")
         self.k_jit = KpiCard("抖动", "-", "越小越稳", "dim")

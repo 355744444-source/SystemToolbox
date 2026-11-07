@@ -275,7 +275,10 @@ def audit() -> Report:
     rep.machine_raw, rep.machine_kind = _read("machine")
     rep.user_raw, rep.user_kind = _read("user")
     rep.entries = parse(rep.machine_raw, rep.user_raw)
-    rep.findings = _findings(rep)
+    # 「读不到」的结论要排在前面：只要有一层没读到，就不能再出「全部有效」那句
+    rep.findings = _read_failed(rep) + _findings(rep)
+    if any(f.topic == "path-unreadable" for f in rep.findings):
+        rep.findings = [f for f in rep.findings if f.topic != "path-ok"]
     rep.elapsed = time.perf_counter() - t0
     return rep
 
@@ -436,6 +439,31 @@ def _findings(rep: Report) -> list[Finding]:
             "info", "path-ok", "PATH 与环境变量没有发现问题",
             "%d 项全部指向存在的目录，没有重复、没有未定义变量。" % len(entries),
             ["这一页不用动"]))
+    return out
+
+
+def _read_failed(rep: Report) -> list[Finding]:
+    """把「读不到」和「没问题」分开。
+
+    `_read()` 读注册表失败时返回 `kind == -1`（权限/键缺失），原来这个标记
+    没人看：只要另一个作用域能读到，页面就照常输出「N 项全部有效」——
+    计算机级 PATH 整个没读到，界面却说一切正常。只读取证工具最不能出这种结论。
+    """
+    out: list[Finding] = []
+    for label, kind, raw in (("计算机", rep.machine_kind, rep.machine_raw),
+                             ("当前用户", rep.user_kind, rep.user_raw)):
+        if kind == -1:
+            out.append(_f(
+                "warn", "path-unreadable",
+                "读不到%s级 PATH 环境变量" % label,
+                "注册表读取被拒绝（通常是权限不足，或该项被策略保护）。"
+                "这一部分没有参与检查，结论不覆盖它。",
+                ["以管理员身份重新运行，再看这一页"]))
+        elif kind == 0 and not raw:
+            out.append(_f(
+                "info", "path-empty",
+                "%s级 PATH 不存在或为空" % label,
+                "这一层没有配置 PATH，属正常状态（只要另一层有值即可）。"))
     return out
 
 

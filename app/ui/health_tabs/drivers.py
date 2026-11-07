@@ -26,7 +26,7 @@ class DriversTabMixin:
 
         row = QHBoxLayout()
         row.setSpacing(8)
-        self.drv_headline = QLabel("尚未检查")
+        self.drv_headline = QLabel("尚未运行")
         self.drv_headline.setObjectName("H3")
         self.drv_headline.setWordWrap(True)
         row.addWidget(self.drv_headline, 1)
@@ -35,9 +35,9 @@ class DriversTabMixin:
         row.addWidget(self.btn_drv)
         l.addLayout(row)
 
-        hint = QLabel("回答三件事：**这台机器额外装过哪些驱动**（谁签的、哪天从哪个目录装的）、"
-                      "**驱动文件签名状态**（未签名 / 证书链有问题的会被点名）、"
-                      "**哪些正在内核里跑**。")
+        hint = QLabel("回答三件事：<b>这台机器额外装过哪些驱动</b>（谁签的、"
+                      "哪天从哪个目录装的）、<b>驱动文件签名状态</b>（未签名 / "
+                      "证书链有问题的会被点名）、<b>哪些正在内核里跑</b>。")
         hint.setProperty("role", "faint")
         hint.setWordWrap(True)
         l.addWidget(hint)

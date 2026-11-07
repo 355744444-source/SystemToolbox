@@ -197,6 +197,7 @@ def _probe_one(node: Node, seconds: float) -> Probe:
     """单连接拉一小段，算真实吞吐 —— 比 TTFB 更能区分节点好坏。"""
     p = Probe(node)
     counter = _Counter()
+    r = None
     try:
         t0 = time.perf_counter()
         r = _open(node.url, timeout=6.0, rng="0-")
@@ -207,10 +208,17 @@ def _probe_one(node: Node, seconds: float) -> Probe:
             if not b:
                 break
             counter.add(len(b))
-        r.close()
     except Exception as exc:            # noqa: BLE001
         p.err = f"{type(exc).__name__}: {exc}"
         return p
+    finally:
+        # read() 超时/断流会直接跳进 except，原来那句 r.close() 就执行不到，
+        # socket 挂着直到 GC —— 一轮 3 个节点、反复测速会攒住连接。
+        if r is not None:
+            try:
+                r.close()
+            except Exception:           # noqa: BLE001
+                pass
     dt = max(0.05, time.perf_counter() - t0)
     p.mbps = counter.get() * 8 / dt / 1e6
     return p
@@ -386,15 +394,21 @@ def _upload(seconds: float, on_progress, stop_flag, frac0: float, frac1: float):
 
     def target(_job, _i, deadline, counter, stop_flag, errs):
         while time.perf_counter() < deadline and not (stop_flag and stop_flag()):
+            r = None
             try:
                 r = _open(UPLOAD_URL, timeout=15.0, data=body)
                 r.read()
-                r.close()
                 counter.add(len(body))
             except Exception as exc:            # noqa: BLE001
                 if not (stop_flag and stop_flag()):
                     errs.append(f"{type(exc).__name__}: {exc}"[:120])
                 return
+            finally:
+                if r is not None:
+                    try:
+                        r.close()
+                    except Exception:           # noqa: BLE001
+                        pass
 
     return _measure([None] * UP_THREADS, target, seconds, on_progress, stop_flag,
                     frac0, frac1, f"上传测速（{UP_THREADS} 线）")
@@ -719,15 +733,21 @@ def peek(node: Node, limit: int = 64 * 1024) -> tuple[int, float, str]:
     （少了 `_ssl.pyd` 或根证书，症状就是这里失败、而 TCP 建连正常），
     64 KB 又不至于为了自检烧流量。
     """
+    r = None
     try:
         t0 = time.perf_counter()
         r = _open(node.url, timeout=5.0, rng="0-")
         ttfb = (time.perf_counter() - t0) * 1000
         data = r.read(limit)
-        r.close()
         return len(data), ttfb, ""
     except Exception as exc:            # noqa: BLE001
         return 0, 0.0, f"{type(exc).__name__}: {exc}"
+    finally:
+        if r is not None:
+            try:
+                r.close()
+            except Exception:           # noqa: BLE001
+                pass
 
 
 def quick_check() -> tuple[bool, str]:

@@ -17,7 +17,8 @@ from PyQt5.QtWidgets import (QComboBox, QHBoxLayout, QLabel, QSplitter,
 
 from ..core import usbperf
 from .tables import Col, RowModel, make_table, run_bg, stop_all
-from .widgets import Bar, KpiCard, ghost_button, primary_button
+from .widgets import (PAGE_MARGINS, Bar, EmptyState, KpiCard, ghost_button,
+                      primary_button)
 
 
 def _fmt_speed(v: float) -> str:
@@ -48,7 +49,7 @@ class UsbPage(QWidget):
     # ------------------------------------------------------------------ 构建
     def _build(self) -> None:
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(0, 12, 0, 0)
+        lay.setContentsMargins(*PAGE_MARGINS)
         lay.setSpacing(9)
 
         top = QHBoxLayout()
@@ -145,7 +146,21 @@ class UsbPage(QWidget):
             Col("说明", 0, lambda r: r[3], color="faint", stretch=True),
         ], parent=self)
         self.table = make_table(self.model, row_height=28)
-        lay.addWidget(self.table, 1)
+
+        # 空态用 EmptyState，不再往表里塞一条假数据：那条「尚未运行」会参与
+        # 点表头排序、能被 Ctrl+A 选中、还能被右键「导出 CSV」导进工单里 ——
+        # 用户会拿到一行根本不是测量结果的记录。其余页面早就是这样做的。
+        holder = QWidget()
+        hl = QVBoxLayout(holder)
+        hl.setContentsMargins(0, 0, 0, 0)
+        hl.setSpacing(0)
+        hl.addWidget(self.table)
+        self.empty = EmptyState(
+            "usb", "还没有测速结果",
+            "选一块盘，点右上角「开始测速」；128 MB 一般在十秒内完成。")
+        hl.addWidget(self.empty)
+        self.empty.hide()
+        lay.addWidget(holder, 1)
         return wrap
 
     def _build_bottom(self) -> QWidget:
@@ -157,7 +172,7 @@ class UsbPage(QWidget):
         head.setProperty("role", "H3")
         lay.addWidget(head)
 
-        self.verdict = QLabel("还没有测试记录。")
+        self.verdict = QLabel("还没有测试记录")
         self.verdict.setWordWrap(True)
         self.verdict.setTextFormat(Qt.RichText)
         lay.addWidget(self.verdict)
@@ -178,11 +193,10 @@ class UsbPage(QWidget):
         return wrap
 
     def _show_placeholder(self) -> None:
-        """没测过时给一行说明，否则空白表格看起来像加载失败。"""
-        self.model.set_rows([
-            ("尚未测速", "-", "-",
-             "选一块盘，点右上角「开始测速」；128 MB 一般在十秒内完成", "faint"),
-        ])
+        """没测过时给空态，否则空白表格看起来像加载失败。"""
+        self.model.set_rows([])
+        self.table.hide()
+        self.empty.show()
 
     # ------------------------------------------------------------------ 盘列表
     def reload(self) -> None:
@@ -331,6 +345,8 @@ class UsbPage(QWidget):
              f"写在 {t.root}，测完整盘占用已释放", "faint"),
         ]
         self.model.set_rows(rows)
+        self.empty.hide()
+        self.table.show()
 
         self.k_read.set_value(_fmt_speed(s.read_mbs), read_g,
                               _role_color(read_role))

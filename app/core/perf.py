@@ -237,6 +237,23 @@ def if_octets() -> tuple[int, int]:
 
 
 # ------------------------------------------------------------------ 采样器
+_OCTET_MOD = 1 << 32          # GetIfTable 的 dwInOctets / dwOutOctets 是 32 位
+
+
+def _delta32(new: int, old: int) -> float:
+    """32 位累加计数器的差值，顺带处理回绕与掉线。
+
+    - `new >= old`：正常，直接相减
+    - `new < old` 且补回 2³² 后差值合理（< 2³¹）：判定为回绕，补上
+    - 补回后仍然是天量：更可能是某块网卡从「已连接」变成「未连接」，总量变小。
+      这时返回 0，不要给曲线造一个假尖峰。
+    """
+    if new >= old:
+        return float(new - old)
+    wrapped = new + _OCTET_MOD - old
+    return float(wrapped) if wrapped < (1 << 31) else 0.0
+
+
 class Sampler:
     """连续采样。第一个点一定是 0（建立基准），用 `discard_first=True` 的
     `sample()` 会自动跳过它。
@@ -323,8 +340,11 @@ class Sampler:
 
         pct, used, mem_total = memory()
         dsk = self._read_disk()
-        rx = max(0, net1[0] - self._net0[0]) / 1024.0 / dt
-        tx = max(0, net1[1] - self._net0[1]) / 1024.0 / dt
+        # dwInOctets / dwOutOctets 是 32 位计数：千兆链路上约 34 秒回绕一次，
+        # 万兆约 3.4 秒。直接相减再 max(0, …) 会把回绕那一次抹成 0，
+        # 于是曲线上每隔一阵出现一个掉到底的尖点。按模 2³² 补回差值。
+        rx = _delta32(net1[0], self._net0[0]) / 1024.0 / dt
+        tx = _delta32(net1[1], self._net0[1]) / 1024.0 / dt
 
         self._t0, self._cpu0, self._net0 = now, cpu1, net1
         return Point(ts=time.time(), cpu=cpu, mem=pct, disk=dsk,

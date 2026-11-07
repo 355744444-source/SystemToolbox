@@ -25,7 +25,7 @@ class HwTabMixin:
         l.setSpacing(6)
         row = QHBoxLayout()
         row.setSpacing(8)
-        self.hw_headline = QLabel("尚未检查")
+        self.hw_headline = QLabel("尚未运行")
         self.hw_headline.setObjectName("H3")
         self.hw_headline.setWordWrap(True)
         row.addWidget(self.hw_headline, 1)

@@ -16,7 +16,8 @@ from ..core import cleaner, locks, registry_clean as reg, residue
 from .space_page import fmt_time
 from .tables import Col, RowModel, TablePane, make_table, run_bg, stop_all
 from . import notice
-from .widgets import (EmptyState, KpiCard, ghost_button, primary_button)
+from .widgets import (PAGE_MARGINS, EmptyState, KpiCard, ghost_button,
+                      primary_button)
 
 
 def _risk_token(risk: str) -> str:
@@ -571,7 +572,7 @@ class LockTab(QWidget):
 
         kpi = QHBoxLayout()
         kpi.setSpacing(8)
-        self.kpi_files = KpiCard("查询文件", "-", "尚未查询")
+        self.kpi_files = KpiCard("查询文件", "-", "尚未运行")
         self.kpi_locked = KpiCard("被占用", "-", "")
         self.kpi_proc = KpiCard("占用进程", "-", "")
         self.kpi_cost = KpiCard("耗时", "-", "")
@@ -856,7 +857,7 @@ class ResiduePage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(18, 12, 18, 12)
+        lay.setContentsMargins(*PAGE_MARGINS)
         lay.setSpacing(8)
         tabs = QTabWidget()
         self.tab_reg = RegistryTab()

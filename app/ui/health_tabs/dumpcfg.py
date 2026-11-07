@@ -27,7 +27,7 @@ class DumpCfgTabMixin:
 
         row = QHBoxLayout()
         row.setSpacing(8)
-        self.dc_headline = QLabel("尚未检查")
+        self.dc_headline = QLabel("尚未运行")
         self.dc_headline.setObjectName("H3")
         self.dc_headline.setWordWrap(True)
         row.addWidget(self.dc_headline, 1)

@@ -140,6 +140,16 @@ class LargeFileTab(QWidget):
         lay.setContentsMargins(0, 10, 0, 0)
         lay.setSpacing(9)
 
+        # 页头：另外两个页签（垃圾清理 / 磁盘优化）的第一行都是页名，
+        # 这里原来是路径选择器，切页签时整行结构换掉、内容整体上跳。
+        head = QHBoxLayout()
+        head.setSpacing(8)
+        title = QLabel("大文件清理")
+        title.setProperty("role", "H2")
+        head.addWidget(title)
+        head.addStretch(1)
+        lay.addLayout(head)
+
         top = QHBoxLayout()
         top.setSpacing(8)
         self.picker = PathPicker(_default_root())
@@ -314,6 +324,15 @@ class DirTreeTab(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 10, 0, 0)
         lay.setSpacing(9)
+
+        # 页头：与「大文件清理」同构，切页签时不换骨架
+        head = QHBoxLayout()
+        head.setSpacing(8)
+        title = QLabel("大目录分析")
+        title.setProperty("role", "H2")
+        head.addWidget(title)
+        head.addStretch(1)
+        lay.addLayout(head)
 
         top = QHBoxLayout()
         top.setSpacing(8)

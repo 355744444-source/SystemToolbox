@@ -351,9 +351,11 @@ def gpu_rows() -> list[Info]:
     return rows
 
 
-def disk_rows() -> list[Info]:
+def disk_rows(volumes: list | None = None) -> list[Info]:
+    """卷信息行。`volumes` 传进来就不重扫 —— 每卷都要开句柄问一次
+    IOCTL，扫两遍等于把 2~6 次设备查询白花掉（collect 里原来就是这么花的）。"""
     rows: list[Info] = []
-    for v in list_volumes():
+    for v in (volumes if volumes is not None else list_volumes()):
         if not v.total:
             continue
         label = v.label or v.media_text
@@ -460,14 +462,16 @@ def collect(stop_flag=None) -> Snapshot:
         snap.os_rows.append(Info("当前权限", "管理员", "可执行服务与系统级改动"))
 
     snap.mem_total, snap.mem_avail, snap.mem_percent = memory()
-    snap.hw_rows = cpu_rows() + board_rows() + gpu_rows() + disk_rows()
+    # 卷信息只扫一次，硬件表和「磁盘」页签共用这一份
+    volumes = list_volumes()
+    snap.hw_rows = cpu_rows() + board_rows() + gpu_rows() + disk_rows(volumes)
     snap.hw_rows.insert(0, Info("内存", human_size(snap.mem_total) if snap.mem_total else "未知",
                                 f"可用 {human_size(snap.mem_avail)}"
                                 f"（已用 {snap.mem_percent}%）" if snap.mem_total else ""))
 
     snap.uptime = uptime()
     snap.boot_at = time.time() - snap.uptime if snap.uptime else 0.0
-    snap.volumes = list_volumes()
+    snap.volumes = volumes
     snap.power = power_plan()
     snap.sec_rows = security_rows()
     snap.procs, snap.proc_total = top_processes(12, stop_flag)

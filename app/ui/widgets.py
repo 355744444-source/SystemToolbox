@@ -23,6 +23,14 @@ SEV_COLOR = {
     "正常": "ok",
 }
 
+#: 每个工作台页面的根布局内边距，**唯一出处**。
+#:
+#: 原来 9 个页面各写各的：日志/蓝屏 `18,14`、清理/残留 `18,12`、优化/网络/体检
+#: `16,10`、U 盘/开机 `0,12`。后果是切页时内容整体左右跳 18px、上下跳 4px，
+#: 而 `0,12` 那两页的 KPI 卡直接压在导航栏的分隔线上（截图实测贴着边）。
+#: 统一成一组之后，页与页之间只剩内容差异，没有位置差异。
+PAGE_MARGINS = (18, 14, 18, 14)
+
 # 内核侧（analysis / dumpcfg / pathenv）用的是英文等级码，界面上一律显示中文。
 # 早期 FindingCard 直接把 severity 当文案，结果卡片上写着 "info" / "warn"。
 SEV_CN = {
@@ -515,6 +523,67 @@ class SectionTitle(QWidget):
         lay.addStretch(1)
         if right_widget is not None:
             lay.addWidget(right_widget)
+
+
+class VerdictBar(QFrame):
+    """结论条：左边一个等级大字，右边「一句话结论 + 一行脚注」，右侧可挂动作按钮。
+
+    `boot_page` 与 `health_page` 原来各写了一整份，控件树逐行相同、只有两处不同：
+    左边等级字的最小宽（52 / 34）和「有没有导出按钮」。这种复制品第二次出现时
+    还看不出问题，第三次一定会漂移 —— 事实上它已经漂了：一份给等级字上色时
+    写了 `background:transparent`，另一份没写，于是在深色卡片上多出一块
+    跟页面同色的方形底。合成一个控件，差异走参数。
+    """
+
+    def __init__(self, level_width: int = 52, parent=None):
+        super().__init__(parent)
+        self.setProperty("role", "card")
+        box = QHBoxLayout(self)
+        box.setContentsMargins(14, 9, 14, 9)
+        box.setSpacing(14)
+        self._box = box
+
+        self.level = QLabel("—")
+        self.level.setObjectName("H1")
+        self.level.setMinimumWidth(level_width)
+        box.addWidget(self.level)
+
+        text = QVBoxLayout()
+        text.setSpacing(1)
+        self.head = QLabel("")
+        self.head.setObjectName("H3")
+        self.head.setWordWrap(True)
+        self.sub = QLabel("")
+        self.sub.setProperty("role", "faint")
+        self.sub.setWordWrap(True)
+        text.addWidget(self.head)
+        text.addWidget(self.sub)
+        box.addLayout(text, 1)
+        self.setVisible(False)
+
+    def add_action(self, widget: QWidget) -> None:
+        """在结论条右侧挂一个动作（如「导出报告」）。"""
+        self._box.addWidget(widget)
+
+    def set_level(self, text: str, color: str = "") -> None:
+        """`color` 收 token 名（`crit`）或十六进制（`#e0696b`），空串表示恢复默认色。
+
+        内联上色**必须显式声明透明底**：QLabel 一旦带内联样式就会自绘一层
+        与父级不同源的底色，在卡片上表现为一道肉眼可见的浅色方块。
+        """
+        self.level.setText(text)
+        if not color:
+            self.level.setStyleSheet("background:transparent;")
+            return
+        t = theme.current()
+        self.level.setStyleSheet("color:%s; background:transparent;"
+                                 % t.get(color, color))
+
+    def set_text(self, head: str, sub: str = "") -> None:
+        self.head.setText(head)
+        self.sub.setText(sub)
+        self.sub.setVisible(bool(sub))
+
 
 
 class FindingCard(QFrame):

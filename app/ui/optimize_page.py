@@ -29,7 +29,8 @@ from ..core import cleaner, services as svc_mod, startup, sysinfo, winver
 from ..core import tweaks as tw
 from .tables import Col, RowModel, make_table, run_bg, stop_all
 from . import notice
-from .widgets import (Dot, KpiCard, chip, ghost_button, primary_button)
+from .widgets import (PAGE_MARGINS, Dot, KpiCard, chip, ghost_button,
+                      primary_button)
 
 RIGHT = int(Qt.AlignRight | Qt.AlignVCenter)
 CENTER = int(Qt.AlignHCenter | Qt.AlignVCenter)
@@ -1154,7 +1155,7 @@ class OptimizePage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 10, 16, 10)
+        lay.setContentsMargins(*PAGE_MARGINS)
         lay.setSpacing(0)
 
         # 第一眼就交代「这台机器按哪一代 Windows 呈现」

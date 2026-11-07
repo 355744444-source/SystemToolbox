@@ -19,7 +19,7 @@ COMPANY = "江苏振远智能科技有限公司"
 COPYRIGHT = "Copyright © 2026 江苏振远智能科技有限公司"
 HOMEPAGE = ""                                # 暂未对外发布，留空
 
-VERSION = "2.1.0"
+VERSION = "2.1.1"
 
 
 def version_tuple() -> tuple:
