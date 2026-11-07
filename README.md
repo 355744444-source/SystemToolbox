@@ -18,6 +18,8 @@
 `python -m PyInstaller --noconfirm --workpath build_work --distpath dist build.spec`，
 产物在 `dist/SystemToolbox.exe`（详见下文「开发」）。
 
+## 关键能力
+
 - **日志分析**：原生 `wevtapi` 读实时通道与离线 `.evtx`，关联分析出「蓝屏 / 掉电 / 磁盘 / 硬件 / 服务 / 应用」结论
 - **蓝屏转储**：纯本地解析 MDMP 与内核转储，给出蓝屏码、参数、异常码、故障模块与模块内偏移；可选 cdb 符号增强。
   **一个按钮读出本机全部蓝屏代码**：不用先找文件 —— 自动扫 Minidump / MEMORY.DMP / LiveKernelReports
